@@ -16,19 +16,27 @@ export function toWhatsApp(raw: string | undefined): string {
   return `whatsapp:${num}`;
 }
 
+// Last 4 digits only: enough to tell numbers apart in logs without storing the full number.
+export const maskNumber = (addr: string) => `…${addr.replace(/\D/g, "").slice(-4)}`;
+
 // Plain free-form reply (no content template). Valid inside the 24h window after the user's
 // last message, which is always the case for a reply to an inbound message.
-export async function sendWhatsApp(to: string, body: string) {
+// Logs the outcome (SID/status or error) but never credentials or message text.
+export async function sendWhatsApp(to: string, body: string): Promise<string[]> {
   const params = { from: toWhatsApp(process.env.TWILIO_WHATSAPP_FROM), to: toWhatsApp(to) };
+  const sids: string[] = [];
+  console.log("Sending WhatsApp reply...", { from: params.from, to: maskNumber(params.to), chars: body.length });
   try {
     for (let i = 0; i < body.length; i += 1500) {
-      await client().messages.create({ ...params, body: body.slice(i, i + 1500) });
+      const m = await client().messages.create({ ...params, body: body.slice(i, i + 1500) });
+      sids.push(m.sid);
+      console.log("Twilio accepted message", { sid: m.sid, status: m.status, errorCode: m.errorCode ?? null });
     }
+    return sids;
   } catch (err: any) {
-    // Log Twilio's own explanation and the addresses used (never credentials or message text).
     console.error("twilio send failed", {
       status: err?.status, code: err?.code, message: err?.message, moreInfo: err?.moreInfo,
-      from: params.from, to: params.to,
+      from: params.from, to: maskNumber(params.to), sentSoFar: sids.length,
     });
     throw err;
   }

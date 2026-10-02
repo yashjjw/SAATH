@@ -25,8 +25,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const first = await Promise.race([work.then((replies) => ({ replies })), sleep(INLINE_MS).then(() => null)]);
 
   res.setHeader("Content-Type", "text/xml");
-  if (first) return res.status(200).send(twiml(first.replies));
+  if (first) {
+    console.log("Replying inline via TwiML", { messages: first.replies.length, chars: first.replies.join("").length });
+    return res.status(200).send(twiml(first.replies));
+  }
 
+  console.log("Reply not ready within inline window; acked empty, will deliver via REST API");
   waitUntil(work.then((replies) => deliver(params.From, replies)));
   return res.status(200).send("<Response></Response>");
 }
@@ -52,8 +56,8 @@ function twiml(replies: string[]): string {
 async function deliver(to: string, replies: string[]) {
   try {
     for (const r of replies) await sendWhatsApp(to, r);
-  } catch (err) {
-    console.error("deliver failed", err);
+  } catch (err: any) {
+    console.error("deliver failed", { code: err?.code, status: err?.status, message: err?.message });
   }
 }
 
