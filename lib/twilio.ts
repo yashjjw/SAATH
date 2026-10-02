@@ -2,14 +2,35 @@ import twilio from "twilio";
 
 const sid = process.env.TWILIO_ACCOUNT_SID!;
 const token = process.env.TWILIO_AUTH_TOKEN!;
-const from = process.env.TWILIO_WHATSAPP_FROM!;
 
 let _client: ReturnType<typeof twilio> | null = null;
 const client = () => (_client ??= twilio(sid, token));
 
+// Env values pasted into a dashboard often carry stray quotes, spaces or a missing prefix.
+// Normalise to Twilio's channel format: whatsapp:+E164.
+export function toWhatsApp(raw: string | undefined): string {
+  const v = (raw ?? "").trim().replace(/^["']|["']$/g, "").trim();
+  if (!v) throw new Error("WhatsApp address is empty (check TWILIO_WHATSAPP_FROM)");
+  const num = v.replace(/^whatsapp:/i, "").replace(/\s+/g, "");
+  if (!/^\+\d{8,15}$/.test(num)) throw new Error(`WhatsApp address is not E.164: "${v}" (expected whatsapp:+14155238886)`);
+  return `whatsapp:${num}`;
+}
+
+// Plain free-form reply (no content template). Valid inside the 24h window after the user's
+// last message, which is always the case for a reply to an inbound message.
 export async function sendWhatsApp(to: string, body: string) {
-  for (let i = 0; i < body.length; i += 1500) {
-    await client().messages.create({ from, to, body: body.slice(i, i + 1500) });
+  const params = { from: toWhatsApp(process.env.TWILIO_WHATSAPP_FROM), to: toWhatsApp(to) };
+  try {
+    for (let i = 0; i < body.length; i += 1500) {
+      await client().messages.create({ ...params, body: body.slice(i, i + 1500) });
+    }
+  } catch (err: any) {
+    // Log Twilio's own explanation and the addresses used (never credentials or message text).
+    console.error("twilio send failed", {
+      status: err?.status, code: err?.code, message: err?.message, moreInfo: err?.moreInfo,
+      from: params.from, to: params.to,
+    });
+    throw err;
   }
 }
 
