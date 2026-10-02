@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SAATH test chat</title>
+<style>
+  :root { --bg:#efeae2; --me:#d9fdd3; --bot:#fff; --bar:#f0f2f5; --head:#075e54; --text:#111b21; --muted:#667781; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { font: 15px/1.4 system-ui, -apple-system, Segoe UI, sans-serif; background: var(--bg); color: var(--text); display: flex; flex-direction: column; max-width: 560px; margin: 0 auto; }
+  header { background: var(--head); color: #fff; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; }
+  header b { font-size: 16px; }
+  header small { opacity: .8; display: block; font-size: 12px; }
+  header button { background: none; border: 1px solid #ffffff80; color: #fff; border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+  #log { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 6px; }
+  .msg { max-width: 82%; padding: 7px 10px; border-radius: 8px; white-space: pre-wrap; word-wrap: break-word; box-shadow: 0 1px 1px #0002; }
+  .me { align-self: flex-end; background: var(--me); }
+  .bot { align-self: flex-start; background: var(--bot); }
+  .sys { align-self: center; background: #ffeecd; font-size: 12px; color: #54410d; }
+  .msg img { max-width: 100%; border-radius: 6px; display: block; margin-bottom: 4px; }
+  .typing { color: var(--muted); font-style: italic; }
+  form { display: flex; gap: 8px; padding: 8px 8px calc(8px + env(safe-area-inset-bottom, 0px)); background: var(--bar); align-items: center; }
+  #text { flex: 1; border: none; border-radius: 20px; padding: 10px 14px; font: inherit; min-width: 0; }
+  form button { border: none; border-radius: 50%; width: 40px; height: 40px; cursor: pointer; font-size: 18px; flex: none; }
+  #send { background: var(--head); color: #fff; }
+  #attach { background: #fff; }
+  #preview { padding: 6px 12px; background: var(--bar); font-size: 13px; display: none; }
+  #preview button { margin-left: 8px; }
+</style>
+</head>
+<body>
+<header>
+  <div><b>SAATH</b><small>test chat · same agent as WhatsApp</small></div>
+  <button id="lock" type="button">Password</button>
+</header>
+<div id="log"></div>
+<div id="preview"><span id="pname"></span><button id="pclear" type="button">remove</button></div>
+<form id="form">
+  <button id="attach" type="button" title="Attach prescription photo">📎</button>
+  <input id="file" type="file" accept="image/*" hidden>
+  <input id="text" placeholder="Message" autocomplete="off">
+  <button id="send" type="submit" title="Send">➤</button>
+</form>
+<script>
+const $ = (id) => document.getElementById(id);
+const log = $("log");
+let pending = null; // { base64, mime, url, name }
+let busy = false;
+
+function key() { return sessionStorage.getItem("saath_key") || ""; }
+function askKey() {
+  const k = window.prompt("Test password (CHAT_TEST_PASSWORD)", key());
+  if (k !== null) sessionStorage.setItem("saath_key", k);
+  return key();
+}
+function add(cls, text, imgUrl) {
+  const d = document.createElement("div");
+  d.className = "msg " + cls;
+  if (imgUrl) { const i = document.createElement("img"); i.src = imgUrl; d.appendChild(i); }
+  if (text) d.appendChild(document.createTextNode(text));
+  log.appendChild(d);
+  log.scrollTop = log.scrollHeight;
+  return d;
+}
+
+// Downscale to keep the request small and the vision call fast.
+function loadImage(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const max = 1800, s = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement("canvas");
+      c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      const dataUrl = c.toDataURL("image/jpeg", 0.85);
+      resolve({ base64: dataUrl.split(",")[1], mime: "image/jpeg", url: dataUrl, name: file.name });
+    };
+    img.onerror = () => reject(new Error("Could not read that image"));
+    img.src = url;
+  });
+}
+
+$("attach").onclick = () => $("file").click();
+$("file").onchange = async (e) => {
+  const f = e.target.files[0]; e.target.value = "";
+  if (!f) return;
+  try {
+    pending = await loadImage(f);
+    $("pname").textContent = "📷 " + pending.name;
+    $("preview").style.display = "block";
+  } catch (err) { add("sys", err.message); }
+};
+$("pclear").onclick = () => { pending = null; $("preview").style.display = "none"; };
+$("lock").onclick = askKey;
+
+$("form").onsubmit = async (e) => {
+  e.preventDefault();
+  if (busy) return;
+  const text = $("text").value.trim();
+  if (!text && !pending) return;
+  if (!key() && !askKey()) return;
+
+  const img = pending;
+  add("me", text, img && img.url);
+  $("text").value = ""; pending = null; $("preview").style.display = "none";
+  busy = true;
+  const typing = add("bot typing", "typing…");
+  try {
+    const r = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-test-key": key() },
+      body: JSON.stringify({ text, image: img && { base64: img.base64, mime: img.mime } }),
+    });
+    typing.remove();
+    if (r.status === 401) { sessionStorage.removeItem("saath_key"); return add("sys", "Wrong password. Tap Password to retry."); }
+    if (r.status === 404) return add("sys", "Chat tester is disabled: set CHAT_TEST_PASSWORD in Vercel and redeploy.");
+    const data = await r.json();
+    (data.replies || []).forEach((m) => add("bot", m));
+    if (data.debug) add("sys", "debug: " + data.debug);
+  } catch (err) {
+    typing.remove();
+    add("sys", "Request failed: " + err.message);
+  } finally { busy = false; }
+};
+
+add("sys", "Test harness. Text goes to chatReply, photos to extractPrescription. Use made-up prescriptions only.");
+</script>
+</body>
+</html>
