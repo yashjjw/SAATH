@@ -1,18 +1,22 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { waitUntil } from "@vercel/functions";
 import { chatReply, extractPrescription, formatExtraction } from "../lib/agent.js";
-import { claimMessage, downloadMedia, isValidSignature, sendWhatsApp } from "../lib/twilio.js";
+import { claimMessage, downloadMedia, isValidSignature, sendWhatsApp, webhookUrl } from "../lib/twilio.js";
 
 export default function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return res.status(405).send("POST only");
 
   const params = (req.body ?? {}) as Record<string, string>;
-  const base = process.env.PUBLIC_BASE_URL?.replace(/\/$/, "");
-  const url = `${base}/api/whatsapp`;
 
-  if (!isValidSignature(req.headers["x-twilio-signature"] as string | undefined, url, params)) {
-    return res.status(403).send("invalid signature");
+  let valid: boolean;
+  try {
+    valid = isValidSignature(req.headers["x-twilio-signature"] as string | undefined, webhookUrl(), params);
+  } catch (err) {
+    // Misconfiguration (missing env var): fail closed with a clear log line, never skip validation.
+    console.error("webhook misconfigured:", err instanceof Error ? err.message : err);
+    return res.status(500).send("server misconfigured");
   }
+  if (!valid) return res.status(403).send("invalid signature");
 
   // Ack Twilio immediately (it times out at ~15s), then keep the function alive
   // for the slow Claude call with waitUntil. Without waitUntil, Vercel freezes the

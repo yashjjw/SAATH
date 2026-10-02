@@ -23,7 +23,20 @@ export async function downloadMedia(url: string): Promise<{ base64: string; mime
   return { base64: Buffer.from(await res.arrayBuffer()).toString("base64"), mime };
 }
 
+// The exact public URL Twilio signed. Prefers PUBLIC_BASE_URL; falls back to Vercel's
+// production-domain system variable. Normalised so a missing scheme or trailing slash can't
+// break validation. Throws (never returns a guess) if neither is set. It deliberately does NOT
+// derive the URL from request headers, which the caller controls.
+export function webhookUrl(): string {
+  const prod = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  const raw = process.env.PUBLIC_BASE_URL?.trim() || (prod ? `https://${prod}` : "");
+  if (!raw) throw new Error("PUBLIC_BASE_URL is not set (e.g. https://saath-sigma.vercel.app)");
+  const withScheme = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  return `${new URL(withScheme).origin}/api/whatsapp`;
+}
+
 export function isValidSignature(signature: string | undefined, url: string, params: Record<string, string>) {
+  if (!token) throw new Error("TWILIO_AUTH_TOKEN is not set");
   return !!signature && twilio.validateRequest(token, signature, url, params);
 }
 
