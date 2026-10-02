@@ -1,7 +1,7 @@
 import type { Model } from "../model.js";
 
 const BASE = "https://generativelanguage.googleapis.com/v1beta/models";
-const modelId = () => process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
+const modelId = () => process.env.GEMINI_MODEL ?? "gemini-3.8-flash";
 
 // Gemini's responseSchema is an OpenAPI subset: `nullable: true`, not type arrays.
 const str = { type: "STRING", nullable: true };
@@ -57,7 +57,7 @@ export const geminiModel: Model = {
     return generate({
       systemInstruction: { parts: [{ text: system }] },
       contents: [{ role: "user", parts: [{ text: userText }] }],
-      // 2.5 models spend output budget on thinking; leave headroom.
+      // thinking models spend output budget on thinking; leave headroom.
       generationConfig: { maxOutputTokens: 2048, temperature: 0.3 },
     });
   },
