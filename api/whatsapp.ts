@@ -82,6 +82,13 @@ async function computeReplies(p: Record<string, string>): Promise<string[]> {
     }
 
     if (!text) return [];
+
+    // TEMP DIAGNOSTIC: canned greeting that skips the model, to isolate Twilio delivery from
+    // Gemini latency. Remove once WhatsApp replies are confirmed working.
+    if (/^(hi|hello|hey)[.!\s]*$/i.test(text)) {
+      return ["Hi! I'm SAATH. Send me a photo of your prescription and I'll list the medicines for you to confirm."];
+    }
+
     return [await chatReply(text)];
   } catch (err) {
     console.error("computeReplies failed", p.MessageSid, err);
