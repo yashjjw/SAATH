@@ -33,23 +33,48 @@ const EXTRACT_SCHEMA = {
   required: ["is_prescription", "doctor_or_clinic", "date_on_document", "overall_note", "lines"],
 };
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const RETRYABLE = new Set([429, 500, 502, 503, 504]);
+
+// One model: up to 3 attempts on overload/rate-limit, with backoff. Anything else fails fast.
+async function callModel(model: string, key: string, body: Record<string, unknown>): Promise<string> {
+  let lastErr = "";
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await sleep(attempt * 1500);
+    const res = await fetch(`${BASE}/${model}:generateContent`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-goog-api-key": key },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      lastErr = `Gemini ${res.status} (${model}): ${(await res.text()).slice(0, 300)}`;
+      if (RETRYABLE.has(res.status)) continue;
+      throw new Error(lastErr);
+    }
+    const data: any = await res.json();
+    const cand = data.candidates?.[0];
+    if (!cand) throw new Error(`Gemini returned no candidate (${data.promptFeedback?.blockReason ?? "unknown reason"})`);
+    const text = (cand.content?.parts ?? []).map((p: any) => p.text ?? "").join("").trim();
+    if (!text && cand.finishReason && cand.finishReason !== "STOP") {
+      throw new Error(`Gemini stopped: ${cand.finishReason}`);
+    }
+    return text;
+  }
+  throw new Error(lastErr);
+}
+
+// Optional GEMINI_FALLBACK_MODEL is tried only if the primary stays overloaded.
 async function generate(body: Record<string, unknown>): Promise<string> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new Error("GEMINI_API_KEY is not set");
-  const res = await fetch(`${BASE}/${modelId()}:generateContent`, {
-    method: "POST",
-    headers: { "content-type": "application/json", "x-goog-api-key": key },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error(`Gemini ${res.status}: ${(await res.text()).slice(0, 300)}`);
-  const data: any = await res.json();
-  const cand = data.candidates?.[0];
-  if (!cand) throw new Error(`Gemini returned no candidate (${data.promptFeedback?.blockReason ?? "unknown reason"})`);
-  const text = (cand.content?.parts ?? []).map((p: any) => p.text ?? "").join("").trim();
-  if (!text && cand.finishReason && cand.finishReason !== "STOP") {
-    throw new Error(`Gemini stopped: ${cand.finishReason}`);
+  try {
+    return await callModel(modelId(), key, body);
+  } catch (err) {
+    const fallback = process.env.GEMINI_FALLBACK_MODEL;
+    const retryable = err instanceof Error && /^Gemini (429|5\d\d) /.test(err.message);
+    if (!fallback || fallback === modelId() || !retryable) throw err;
+    return await callModel(fallback, key, body);
   }
-  return text;
 }
 
 export const geminiModel: Model = {
