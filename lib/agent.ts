@@ -1,8 +1,5 @@
-import Anthropic from "@anthropic-ai/sdk";
-import { EXTRACT_TOOL, PrescriptionExtraction } from "./schema.js";
-
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-const MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-5";
+import type { PrescriptionExtraction, MedicationLine } from "./schema.js";
+import { getModel, type ImgMime } from "./model.js";
 
 const SYSTEM = `You are SAATH, a care-execution assistant for patients and families in India.
 Rules you never break:
@@ -12,42 +9,44 @@ Rules you never break:
 - Keep replies short, plain, and WhatsApp-friendly. Match the user's language when you can.`;
 
 export async function chatReply(userText: string): Promise<string> {
-  const res = await client.messages.create({
-    model: MODEL,
-    max_tokens: 400,
-    system: SYSTEM,
-    messages: [{ role: "user", content: userText }],
-  });
-  return res.content.map((b) => (b.type === "text" ? b.text : "")).join("").trim() ||
-    "Send me a photo of your prescription and I'll list the medicines for you to confirm.";
+  const text = await getModel().chat(SYSTEM, userText);
+  return text || "Send me a photo of your prescription and I'll list the medicines for you to confirm.";
 }
-
-type ImgMime = "image/jpeg" | "image/png" | "image/gif" | "image/webp";
 
 export async function extractPrescription(
   imageBase64: string,
   mime: ImgMime,
   caption: string
 ): Promise<PrescriptionExtraction> {
-  const res = await client.messages.create({
-    model: MODEL,
-    max_tokens: 2000,
-    system: SYSTEM,
-    tools: [EXTRACT_TOOL],
-    tool_choice: { type: "tool", name: EXTRACT_TOOL.name },
-    messages: [
-      {
-        role: "user",
-        content: [
-          { type: "image", source: { type: "base64", media_type: mime, data: imageBase64 } },
-          { type: "text", text: `Extract the medication lines from this image.${caption ? ` User note: ${caption}` : ""}` },
-        ],
-      },
-    ],
+  return normalizeExtraction(await getModel().extract(SYSTEM, imageBase64, mime, caption));
+}
+
+const blank = (v: unknown) => v == null || (typeof v === "string" && v.trim() === "");
+
+// Deterministic gate (PRD R01), independent of provider: validate the shape, and never let a
+// line be CLEAR without a drug name and a strength. The model proposes; this decides.
+export function normalizeExtraction(raw: unknown): PrescriptionExtraction {
+  const x = raw as Partial<PrescriptionExtraction> | null;
+  if (!x || typeof x !== "object" || typeof x.is_prescription !== "boolean" || !Array.isArray(x.lines)) {
+    throw new Error("Extraction failed validation");
+  }
+  const lines: MedicationLine[] = x.lines.map((l) => {
+    const line = { ...l } as MedicationLine;
+    if (line.confidence !== "CLEAR") line.confidence = "UNCLEAR";
+    if (line.confidence === "CLEAR" && (blank(line.drug_name) || blank(line.strength))) {
+      line.confidence = "UNCLEAR";
+      line.unclear_reason = "drug name or strength not stated on the document";
+    }
+    if (line.confidence === "UNCLEAR" && blank(line.unclear_reason)) line.unclear_reason = "unreadable";
+    return line;
   });
-  const block = res.content.find((b) => b.type === "tool_use");
-  if (!block || block.type !== "tool_use") throw new Error("Model returned no structured extraction");
-  return block.input as PrescriptionExtraction;
+  return {
+    is_prescription: x.is_prescription,
+    doctor_or_clinic: x.doctor_or_clinic ?? null,
+    date_on_document: x.date_on_document ?? null,
+    overall_note: x.overall_note ?? null,
+    lines,
+  };
 }
 
 // Deterministic formatting + gate: UNCLEAR lines are surfaced, never silently accepted.
