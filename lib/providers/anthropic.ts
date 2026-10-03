@@ -7,12 +7,16 @@ const getClient = () => (client ??= new Anthropic({ apiKey: process.env.ANTHROPI
 const modelId = () => process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-5";
 
 export const anthropicModel: Model = {
-  async chat(system, userText) {
+  async chat(system, userText, opts) {
     const res = await getClient().messages.create({
       model: modelId(),
-      max_tokens: 400,
+      max_tokens: opts?.maxTokens ?? 400,
+      ...(opts?.temperature !== undefined ? { temperature: opts.temperature } : {}),
       system,
-      messages: [{ role: "user", content: userText }],
+      messages: [
+        ...(opts?.history ?? []).map((t) => ({ role: t.role, content: t.text })),
+        { role: "user" as const, content: userText },
+      ],
     });
     return res.content.map((b) => (b.type === "text" ? b.text : "")).join("").trim();
   },

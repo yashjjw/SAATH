@@ -5,8 +5,11 @@ export type ImgMime = "image/jpeg" | "image/png" | "image/gif" | "image/webp";
 
 // Providers only produce text / raw JSON. Validation and gates live in agent.ts so they
 // apply identically whichever model is behind this.
+export interface ChatTurn { role: "user" | "assistant"; text: string }
+export interface ChatOpts { history?: ChatTurn[]; maxTokens?: number; temperature?: number }
+
 export interface Model {
-  chat(system: string, userText: string): Promise<string>;
+  chat(system: string, userText: string, opts?: ChatOpts): Promise<string>;
   extract(system: string, imageBase64: string, mime: ImgMime, caption: string): Promise<unknown>;
 }
 

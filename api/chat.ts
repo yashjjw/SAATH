@@ -1,6 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { timingSafeEqual } from "node:crypto";
 import { chatReply, extractPrescription, formatExtraction } from "../lib/agent.js";
+import { clinicReply } from "../lib/clinic.js";
+import type { ChatTurn } from "../lib/model.js";
 
 // Test-only twin of api/whatsapp.ts: same agent functions, no Twilio. Disabled unless
 // CHAT_TEST_PASSWORD is set, because it spends Anthropic credits on a public URL.
@@ -21,13 +23,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: "wrong password" });
   }
 
-  const { text = "", image } = (req.body ?? {}) as {
+  const { text = "", image, mode = "patient", history = [] } = (req.body ?? {}) as {
     text?: string;
     image?: { base64: string; mime: string };
+    mode?: "patient" | "clinic";
+    history?: ChatTurn[];
   };
   const caption = String(text).trim();
 
   try {
+    if (mode === "clinic") {
+      if (image) return res.json({ replies: ["Clinic mode is text only for now. Switch to Patient mode to read a prescription photo."] });
+      if (!caption) return res.json({ replies: [] });
+      // Client-held history, capped and sanitised. Nothing is stored server-side.
+      const turns = (Array.isArray(history) ? history : [])
+        .filter((t) => t && (t.role === "user" || t.role === "assistant") && typeof t.text === "string")
+        .slice(-20)
+        .map((t) => ({ role: t.role, text: t.text.slice(0, 6000) }));
+      return res.json({ replies: [await clinicReply(turns, caption)] });
+    }
     if (image) {
       if (!IMG_MIME.test(image.mime)) {
         return res.json({ replies: ["I can read photos for now (JPG/PNG). Voice and PDFs are coming next."] });

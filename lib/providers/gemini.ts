@@ -78,12 +78,16 @@ async function generate(body: Record<string, unknown>): Promise<string> {
 }
 
 export const geminiModel: Model = {
-  chat(system, userText) {
+  chat(system, userText, opts) {
+    const history = (opts?.history ?? []).map((t) => ({
+      role: t.role === "assistant" ? "model" : "user",
+      parts: [{ text: t.text }],
+    }));
     return generate({
       systemInstruction: { parts: [{ text: system }] },
-      contents: [{ role: "user", parts: [{ text: userText }] }],
+      contents: [...history, { role: "user", parts: [{ text: userText }] }],
       // thinking models spend output budget on thinking; leave headroom.
-      generationConfig: { maxOutputTokens: 2048, temperature: 0.3 },
+      generationConfig: { maxOutputTokens: opts?.maxTokens ?? 2048, temperature: opts?.temperature ?? 0.3 },
     });
   },
 

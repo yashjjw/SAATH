@@ -74,6 +74,11 @@
   #text::placeholder { color: var(--time); }
   #go { width: 46px; height: 46px; border-radius: 50%; border: 0; background: var(--send); color: #fff; display: grid; place-items: center; cursor: pointer; flex: none; }
 
+  body.clinic { --head: #1f3a5f; }
+  body.clinic .avatar { background: #3b82c4; }
+  body.clinic .msg.in { max-width: 96%; }
+  body.clinic .msg.in .body { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; line-height: 1.4; }
+  body.clinic .msg.in .body::after { width: 60px; }
   #preview { position: fixed; inset: 0; background: #0b141a; z-index: 10; display: none; flex-direction: column; max-width: 640px; margin: 0 auto; }
   #preview.on { display: flex; }
   #preview .top { padding: calc(10px + env(safe-area-inset-top, 0px)) 12px 10px; }
@@ -90,6 +95,7 @@
   <button class="iconbtn" type="button" aria-label="Back"><svg width="24" height="24" viewBox="0 0 24 24"><path d="M12 4l1.4 1.4L7.8 11H20v2H7.8l5.6 5.6L12 20l-8-8z"/></svg></button>
   <div class="avatar">S</div>
   <div class="who"><b>SAATH</b><small id="status">online</small></div>
+  <button class="iconbtn" id="mode" type="button" aria-label="Switch mode" title="Switch Patient / Clinic" style="font-size:12px;font-weight:600;border:1px solid #ffffff66;border-radius:14px;padding:4px 10px">Patient</button>
   <button class="iconbtn" id="menu" type="button" aria-label="Set test password" title="Set test password"><svg width="24" height="24" viewBox="0 0 24 24"><path d="M12 7a2 2 0 100-4 2 2 0 000 4zm0 2a2 2 0 100 4 2 2 0 000-4zm0 6a2 2 0 100 4 2 2 0 000-4z"/></svg></button>
 </header>
 
@@ -123,6 +129,8 @@ const TICK2 = '<svg viewBox="0 0 16 11"><path d="M11.100.7L4.900 7.200 2.400 4.6
 let pending = null;   // { base64, mime, url }
 let busy = false;
 let lastSide = null;  // for grouping bubbles + tails
+let mode = "patient"; // "patient" | "clinic"
+let history = [];     // clinic mode only: [{role, text}], kept in the browser, resent each turn
 
 const key = () => sessionStorage.getItem("saath_key") || "";
 function askKey() {
@@ -196,6 +204,18 @@ $("clip").onclick = () => pick(false);
 $("cam").onclick = () => pick(true);
 $("emoji").onclick = () => text.focus();
 $("menu").onclick = askKey;
+$("mode").onclick = () => {
+  if (busy) return;
+  mode = mode === "patient" ? "clinic" : "patient";
+  history = [];
+  document.body.classList.toggle("clinic", mode === "clinic");
+  $("mode").textContent = mode === "clinic" ? "Clinic" : "Patient";
+  document.querySelector(".who b").textContent = mode === "clinic" ? "SAATH Clinic" : "SAATH";
+  document.querySelector(".avatar").textContent = mode === "clinic" ? "C" : "S";
+  system(mode === "clinic"
+    ? "Clinician mode (Dr. R. Mehta, OPD). SYNTHETIC patient data only. Try: \"meera sharma, follow up\", \"hb trend\", \"could the dizziness be the telmisartan\". Text only."
+    : "Patient mode. Same agent as WhatsApp.");
+};
 $("file").onchange = async (e) => {
   const f = e.target.files[0]; e.target.value = "";
   if (!f) return;
@@ -230,7 +250,7 @@ async function send(t, img) {
     const r = await fetch("/api/chat", {
       method: "POST",
       headers: { "content-type": "application/json", "x-test-key": key() },
-      body: JSON.stringify({ text: t, image: img && { base64: img.base64, mime: img.mime } }),
+      body: JSON.stringify({ text: t, mode, history: mode === "clinic" ? history : [], image: img && { base64: img.base64, mime: img.mime } }),
     });
     dots.remove(); setStatus("online");
     if (r.status === 401) { sessionStorage.removeItem("saath_key"); busy = false; return system("Wrong password. Tap ⋮ to enter it again."); }
@@ -242,6 +262,10 @@ async function send(t, img) {
   }
   setTicks(mine, 3);
   const replies = data.replies || [];
+  if (mode === "clinic" && replies.length && !data.debug) {
+    history.push({ role: "user", text: t }, { role: "assistant", text: replies.join("\n\n") });
+    if (history.length > 20) history = history.slice(-20);
+  }
   for (let i = 0; i < replies.length; i++) {
     if (i > 0) { setStatus("typing…"); const d = typingDots(); await sleep(Math.min(1400, 400 + replies[i].length * 6)); d.remove(); setStatus("online"); }
     bubble("in", replies[i]);
