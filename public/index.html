@@ -176,7 +176,8 @@ function askKey() {
   if (k !== null) sessionStorage.setItem("saath_key", k);
   return key();
 }
-const hhmm = () => new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+const hhmm = () => new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).replace(" AM", " am").replace(" PM", " pm");
+let lastTime = null;   // saathi mode: the conversation clock, so unscripted bubbles never show the real time
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const esc = (s) => s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
 // WhatsApp-style *bold* and _italic_
@@ -194,7 +195,8 @@ function bubble(side, t, imgUrl, time, extra) {
   if (imgUrl) { const p = document.createElement("div"); p.className = "photo"; const i = document.createElement("img"); i.src = imgUrl; p.appendChild(i); d.appendChild(p); }
   if (t) { const b = document.createElement("div"); b.className = "body"; b.innerHTML = fmt(t); d.appendChild(b); }
   const m = document.createElement("div"); m.className = "meta";
-  m.innerHTML = `<span>${time || hhmm()}</span>` + (side === "out" ? `<span class="tk">${TICK1}</span>` : "");
+  if (time) lastTime = time;
+  m.innerHTML = `<span>${time || (mode === "saathi" && lastTime) || hhmm()}</span>` + (side === "out" ? `<span class="tk">${TICK1}</span>` : "");
   d.appendChild(m);
   log.appendChild(d); lastSide = side; scroll();
   return d;
@@ -247,18 +249,13 @@ const LABEL = { saathi: "Saathi", patient: "Patient", clinic: "Clinic" };
 const NAME = { saathi: "Saathi", patient: "SAATH", clinic: "SAATH Clinic" };
 const INITIAL = { saathi: "S", patient: "S", clinic: "C" };
 function initThread() {
-  log.innerHTML = ""; lastSide = null; history = []; demo = null;
+  log.innerHTML = ""; lastSide = null; history = []; demo = null; lastTime = null;
   document.body.classList.toggle("clinic", mode === "clinic");
   $("mode").textContent = LABEL[mode];
   document.querySelector(".who b").textContent = NAME[mode];
   document.querySelector(".avatar").textContent = INITIAL[mode];
   const dayText = mode === "saathi" ? "Sunday, 4 Oct" : new Date().toLocaleDateString([], { weekday: "long", day: "numeric", month: "short" });
   const d = document.createElement("div"); d.className = "day"; d.textContent = dayText; log.appendChild(d);
-  system({
-    saathi: "Scripted demo: Ramesh Sharma, Indore. Type \"Hi\" to begin. All names, clinics, fees and timings are fictional mock data. No real call or booking happens.",
-    patient: "Patient mode: the prescription reader. Same agent as WhatsApp. Use made-up prescriptions only.",
-    clinic: "Clinician mode (Dr. R. Mehta, OPD). SYNTHETIC patient data only. Try: \"meera sharma, follow up\", \"hb trend\", \"could the dizziness be the telmisartan\". Text only.",
-  }[mode]);
 }
 $("mode").onclick = () => {
   if (busy) return;
@@ -281,7 +278,7 @@ $("pcap").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preven
 
 $("form").onsubmit = (e) => {
   e.preventDefault();
-  if (go.dataset.mode === "mic") return system("Voice notes aren't wired up yet (Gnani speech-to-text is a later step). Type or send a photo.");
+  if (go.dataset.mode === "mic") return system("Voice notes aren't available yet. Type a message or send a photo.");
   const t = text.value.trim(); text.value = ""; refreshButton();
   send(t, null);
 };
@@ -345,9 +342,6 @@ async function renderCall(m) {
   const bars = Array.from({ length: 28 }, (_, i) => `<span style="height:${30 + ((i * 37) % 70)}%;animation-delay:${(i % 7) * 0.09}s"></span>`).join("");
   rec.innerHTML = `<button type="button" aria-label="Play recording">▶</button><div class="wave">${bars}</div><em>🎙 ${m.duration}</em>`;
   box.appendChild(rec);
-  const note = document.createElement("div"); note.className = "note";
-  note.textContent = "Call recording (simulated: played with your browser's text-to-speech, not real audio).";
-  box.appendChild(note);
   const btn = rec.querySelector("button"); let playing = false;
   const stop = () => { playing = false; speechSynthesis.cancel(); rec.classList.remove("playing"); btn.textContent = "▶"; };
   btn.onclick = () => {
@@ -415,7 +409,8 @@ async function send(t, img, id) {
   if (mine) setTicks(mine, 3);
   if (data.messages) {
     demo = data.state;
-    if (mine && data.userTime) mine.querySelector(".meta span").textContent = data.userTime;
+    if (data.userTime) lastTime = data.userTime;
+    if (mine) mine.querySelector(".meta span").textContent = data.userTime || lastTime || hhmm();
     await renderScript(data.messages);
     busy = false;
     return;

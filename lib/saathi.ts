@@ -54,7 +54,6 @@ const FOLLOW: Msg = {
   kind: "buttons",
   options: [{ id: "both", label: "Do both" }, { id: "remind", label: "Just remind me" }, { id: "none", label: "No thanks" }],
 };
-const RESTART: Msg = { kind: "buttons", options: [{ id: "restart", label: "↺ Restart demo" }] };
 const BACK: Msg = { kind: "buttons", options: [{ id: "back_docs", label: "Back to my doctors" }] };
 
 const DOCTOR_CARD: Msg = {
@@ -101,8 +100,8 @@ function reprompt(s: DemoState, lead: string): DemoResult {
     date: [],
     daypart: [PARTS],
     followup: [FOLLOW],
-    done: [RESTART],
-    end: [RESTART],
+    done: [MENU],
+    end: [MENU],
   };
   return { state: s, messages: [t(lead), ...by[s.step]] };
 }
@@ -142,11 +141,11 @@ export function saathiReply(state: DemoState | null | undefined, input: DemoInpu
       if (has(input, "menu_3", /^\s*3\b|prescription/i)) {
         return {
           state,
-          messages: [t("Send me a photo of the prescription with 📎 and I'll read it. This part uses the real prescription reader, not the script. Use a made-up prescription only."), MENU],
+          messages: [t("Send me a photo of the prescription using 📎 and I'll read it for you.")],
         };
       }
       if (/^menu_[2456]$/.test(input.id ?? "") || /^\s*[2456]\b/.test(text)) {
-        return { state, messages: [t("That part isn't in this demo yet. Try 📅 Book an appointment."), MENU] };
+        return { state, messages: [t("I can't help with that just yet. Right now I can book appointments for you 📅"), MENU] };
       }
       return reprompt(state, "Please choose one from the menu 👇");
     }
@@ -164,7 +163,7 @@ export function saathiReply(state: DemoState | null | undefined, input: DemoInpu
           ],
         };
       }
-      return { state, messages: [t("In this demo I can book a cardiologist. Try: \"I need to see a heart doctor\".")] };
+      return { state, messages: [t("I can help you book a cardiologist. Tell me, for example, \"I need to see a heart doctor\".")] };
 
     case "doctor":
       if (has(input, "doc_1", /kulkarni|^\s*1\b/i)) {
@@ -179,7 +178,7 @@ export function saathiReply(state: DemoState | null | undefined, input: DemoInpu
         };
       }
       if (has(input, "doc_2", /joshi|^\s*2\b/i)) {
-        return reprompt(state, "In this demo the booking call is only scripted for Dr. Kulkarni. Please pick her to see the full flow 🙂");
+        return reprompt(state, "I can't book with Dr. Joshi right now. Would you like to see Dr. Kulkarni instead?");
       }
       if (has(input, "doc_other", /someone else|other/i)) {
         return {
@@ -217,7 +216,7 @@ export function saathiReply(state: DemoState | null | undefined, input: DemoInpu
       if (input.id === "back_docs" || /back/i.test(text)) {
         return { state: { step: "doctor" }, messages: [t("Here are your doctors again:"), DOCTOR_CARD, DOCTORS] };
       }
-      return reprompt(state, "In this demo the booking call is only scripted for Dr. Kulkarni, from your records. Tap below to go back.");
+      return reprompt(state, "I can't book with that doctor right now. Would you like to go back to your doctors?");
 
     case "when":
       if (has(input, "when_earliest", /earliest/i)) {
@@ -244,7 +243,7 @@ export function saathiReply(state: DemoState | null | undefined, input: DemoInpu
           messages: [t("*Friday, 9 Oct.* Morning or evening?", "7:48 pm"), PARTS],
         };
       }
-      return { state, messages: [t("In this demo, please type \"Next Friday\".")] };
+      return { state, messages: [t("Sorry, I couldn't tell which day you mean. You can type something like \"next Friday\".")] };
 
     case "daypart": {
       const part = input.id?.replace("part_", "") ?? (/morning/i.test(text) ? "morning" : /evening/i.test(text) ? "evening" : /either/i.test(text) ? "either" : "");
@@ -256,15 +255,13 @@ export function saathiReply(state: DemoState | null | undefined, input: DemoInpu
           userTime: "7:48 pm",
           messages: [
             t(`Understood. Tomorrow at 10 am I'll call the clinic and ask for ${part === "either" ? "a" : "an"} *${slot} on ${state.date}*.\nIf that day is full, I'll ask you which day or time works instead. I won't book a different day on my own.`, "7:49 pm"),
-            { kind: "system", text: "Demo ends here: the outcome of this branch isn't scripted." },
-            RESTART,
           ],
         };
       }
       if (part === "morning") {
         return { state: { step: "followup" }, userTime: "7:48 pm", messages: bookingFlow() };
       }
-      return reprompt(state, "In this demo the earliest-slot path is scripted for the morning. Please tap Morning.");
+      return reprompt(state, "The earliest slot I can ask for is in the morning. Would you like a morning slot?");
     }
 
     case "followup":
@@ -295,12 +292,12 @@ export function saathiReply(state: DemoState | null | undefined, input: DemoInpu
 
     case "done":
       if (/thank/i.test(text)) {
-        return { state: { step: "end" }, userTime: "10:16 am", messages: [t("You're welcome, Ramesh 🙏", "10:16 am"), RESTART] };
+        return { state: { step: "end" }, userTime: "10:16 am", messages: [t("You're welcome, Ramesh 🙏", "10:16 am")] };
       }
-      return reprompt(state, "That's the end of the demo. Type \"Hi\" to start over.");
+      return reprompt(state, "Is there anything else I can help you with?");
 
     case "end":
     default:
-      return reprompt({ step: "end" }, "That's the end of the demo. Type \"Hi\" to start over.");
+      return reprompt({ step: "end" }, "Is there anything else I can help you with?");
   }
 }
