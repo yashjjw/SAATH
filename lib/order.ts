@@ -29,6 +29,9 @@ export interface OrderData {
   linkId?: string;
   payOrderId?: string;
   link?: string;
+  upi?: string;              // pharmacy's UPI id, from its reply
+  eta?: string;              // delivery time the pharmacy quoted, e.g. "4 days"
+  awb?: string;              // Delhivery tracking id, from the pharmacy's reply
   stage?: string;            // last delivery stage
   where?: string;            // last delivery location, if the update had one
 }
@@ -57,6 +60,7 @@ const clip = (s: string, n = 200) => (s.length > n ? s.slice(0, n - 1) + "…" :
 
 export const OFFER = btn(["order_yes", "Yes, order them"], ["order_no", "Not now"]);
 const CANCEL = btn(["order_cancel", "Cancel order"]);
+const APPROVE = btn(["pay_approve", "Approve payment"], ["order_cancel", "Cancel order"]);
 const NEW_LINK = btn(["new_link", "Send a new link"]);
 const RETRY_LINK = btn(["retry_link", "Try again"]);
 
@@ -128,11 +132,11 @@ function payLinkRequest(o: OrderData, c: Clock, now: number): { call: ApiCall; l
       headers: { Authorization: "Bearer ••••••••", "Content-Type": "application/json", "Request-ID": randomUUID(), "Request-Timestamp": new Date(now).toISOString() },
       body: {
         amount: { value: amountValue, currency: "INR" },
-        description: `Medicines for order ${o.ref}`,
+        description: `${PHARMACY} order ${o.ref}${o.upi ? ` (pay to UPI ${o.upi})` : ""}`,
         expire_by: new Date(now + 24 * 3600 * 1000).toISOString(),
         merchant_payment_link_reference: linkRef,
       },
-      note: `Assumes amount.value is in paise (${money(o.total ?? 0)} = ${amountValue}). Confirm the unit in Pine Labs' API reference. Reply format: the documented 201 Created response.`,
+      note: `Assumes amount.value is in paise (${money(o.total ?? 0)} = ${amountValue}); confirm in Pine Labs' API reference. The docs given have no payee field, so the pharmacy's UPI id is carried in the description only. Reply with the documented 201 response, or skip it and send the payment event.`,
     },
   };
 }
@@ -166,17 +170,24 @@ function askPharmacy(rx: RxData, o: OrderData): DemoResult {
   return {
     state: { step: "po_wait", rx, order: o },
     messages: [t(`Placing your order with ${PHARMACY}… 💊\nI'll message you as soon as they confirm.`)],
-    desk: { requests: [pharmacyRequest(rx, o.ref)] },
+    desk: {
+      requests: [pharmacyRequest(rx, o.ref)],
+      examples: [{ system: "pharmacy", items: [
+        { label: "Confirmed with bill, UPI, delivery (sample)", json: `Hello Mr. Sharma, your order ${o.ref} is confirmed.\nBill amount: ₹528\nDelivery: 4 days\nPlease pay to UPI ID sunrise.pharmacy@okicici and approve the payment so we can dispatch.` },
+        { label: "Out of stock (sample)", json: "Sorry, Pan-D 40 is out of stock this week." },
+      ] }],
+    },
   };
 }
 
 function makeLink(rx: RxData, o0: OrderData, c: Clock, now: number, lead: Msg[]): DemoResult {
   const { call, linkRef, amountValue } = payLinkRequest(o0, c, now);
   const o: OrderData = { ...o0, linkRef, amountValue, linkId: undefined, payOrderId: undefined, link: undefined };
+  const early = webhookExamples({ ...o, linkId: "pl-v1-250306082755-aa-uT0noy", payOrderId: "v1-250131113650-aa-TUzeRY" });
   return {
     state: { step: "link_wait", rx, order: o },
     messages: lead,
-    desk: { requests: [call], examples: [{ system: "pinelabs", items: [{ label: "Create-link response (documented 201)", json: createResponseExample(o, linkRef, amountValue, now) }] }] },
+    desk: { requests: [call], examples: [{ system: "pinelabs", items: [{ label: "Create-link response (documented 201)", json: createResponseExample(o, linkRef, amountValue, now) }, ...early.items] }] },
   };
 }
 
@@ -199,6 +210,20 @@ export function orderText(state: DemoState, input: { id?: string; text?: string 
 
     case "po_wait":
       return { state, messages: [t(`I'm still waiting for ${PHARMACY} to confirm your order 💊 I'll message you as soon as they do.`)] };
+
+    case "pay_approve": {
+      const approve = id === "pay_approve" || (!id && /^\s*(yes|yeah|yep|approve(d)?|ok(ay)?|go ahead|pay|sure|haan|confirm)\b/i.test(text));
+      const cancel = id === "order_cancel" || (!id && /\b(cancel|no|don'?t|stop)\b/i.test(text));
+      if (rx && o && approve) {
+        return makeLink(rx, o, c, now, [t(`Thank you, Ramesh. Approved ✅ I'm starting the payment of ${money(o.total ?? 0)}${o.upi ? ` to ${o.upi}` : ""} through Pine Labs 🔐`)]);
+      }
+      if (cancel) return { state: { step: "end" }, messages: [t("Okay, I've cancelled the order. Nothing was paid 🙏 Is there anything else I can help you with?")] };
+      return { state, messages: [t(`Shall I approve the payment of ${money(o?.total ?? 0)} to ${PHARMACY}? I won't pay anything without your OK.`), APPROVE] };
+    }
+
+    case "dispatch_wait":
+      if (/\b(paid|payment)\b/i.test(text)) return { state, messages: [t(`Your payment of ${money(o?.total ?? 0)} is confirmed ✅ I'm waiting for ${PHARMACY} to share the Delhivery tracking ID 📦`)] };
+      return { state, messages: [t(`Your payment is confirmed ✅ I'm waiting for ${PHARMACY} to dispatch and share the Delhivery tracking ID. I'll tell you as soon as I have it 📦`)] };
 
     case "po_decide":
       if (id === "order_cancel" || /cancel|no\b/i.test(text)) {
@@ -223,8 +248,9 @@ export function orderText(state: DemoState, input: { id?: string; text?: string 
       return { state, messages: [t("Shall I send you a new payment link?"), NEW_LINK] };
 
     case "ship_wait": {
-      const last = o?.stage ? `Last update: ${o.stage}${o.where ? ` (${o.where})` : ""}.` : "Your payment is confirmed and the pharmacy is preparing your order.";
-      return { state, messages: [t(`${last} I'll tell you as soon as there's news 📦`)] };
+      const id2 = o?.awb ? `Delhivery tracking ID: ${o.awb}. You can follow it in the Delhivery app.` : "";
+      const last = o?.stage ? `Last update: ${o.stage}${o.where ? ` (${o.where})` : ""}.` : "Your order has been dispatched.";
+      return { state, messages: [t(`${last}${id2 ? "\n" + id2 : ""}\nI'll tell you if there's news 📦`)] };
     }
 
     case "delivered":
@@ -242,13 +268,29 @@ const ack = (system: string, ok: boolean, note: string) => ({ system, ok, note }
 function expecting(step: string): string {
   return ({
     rx_wait: "a prescription photo from Ramesh", rx_offer: "Ramesh's answer", po_wait: "the pharmacy's reply", po_decide: "Ramesh's decision",
-    link_wait: "Pine Labs' response to the create-link call", link_retry: "Ramesh to retry", pay_wait: "a Pine Labs payment event",
+    pay_approve: "Ramesh's approval of the payment", link_wait: "Pine Labs' response (or payment event)", link_retry: "Ramesh to retry", pay_wait: "a Pine Labs payment event",
+    dispatch_wait: "the pharmacy's tracking ID",
     pay_retry: "Ramesh to ask for a new link", ship_wait: "a Delhivery tracking update", delivered: "nothing (delivered)",
   } as Record<string, string>)[step] ?? "nothing";
 }
 
-function parsePharmacy(raw: string): { kind: "unavailable" | "confirmed" | "no_total" | "unclear"; total?: number; text: string } {
+function extractUpi(raw: string): string | undefined {
+  // a UPI id has no dot in its handle ("name@okicici"); anything like name@site.com is an email
+  return raw.match(/([A-Za-z0-9._-]{2,}@[A-Za-z]{2,})(?!\.?[A-Za-z0-9-])/)?.[1];
+}
+function extractEta(raw: string): string | undefined {
+  const num = "(\\d{1,2}(?:\\s*(?:-|to)\\s*\\d{1,2})?)\\s*(?:business\\s+|working\\s+)?(days?|hours?|hrs?)";
+  const m = raw.match(new RegExp(`deliver[^.\\n]{0,40}?${num}`, "i")) || raw.match(new RegExp(num, "i"));
+  return m ? `${m[1].replace(/\s+/g, "")} ${/^h/i.test(m[2]) ? "hours" : /^1$/.test(m[1]) ? "day" : "days"}` : undefined;
+}
+function extractAwb(raw: string): string | undefined {
+  const m = raw.match(/(?:tracking|awb|waybill|way bill|consignment|lr)\s*(?:id|no\.?|number|#)?\s*(?:is)?\s*[:#-]?\s*([A-Za-z0-9]*\d[A-Za-z0-9]*)/i);
+  return m && m[1].length >= 8 && m[1].length <= 20 ? m[1] : undefined;
+}
+
+function parsePharmacy(raw: string): { kind: "unavailable" | "confirmed" | "no_total" | "unclear"; total?: number; upi?: string; eta?: string; text: string } {
   const j = parseJson(raw);
+  const upi = extractUpi(raw), eta = extractEta(raw);
   let text = raw.trim(), total: number | undefined;
   if (isObj(j)) {
     text = [j.message, j.status, j.reply, j.text].filter((x) => typeof x === "string").join(". ") || raw;
@@ -257,17 +299,23 @@ function parsePharmacy(raw: string): { kind: "unavailable" | "confirmed" | "no_t
     if (Number.isFinite(n) && n > 0) total = n;
   }
   if (total === undefined) {
-    // Several figures can appear ("item total ₹264, grand total ₹528"). Prefer the amount the customer pays:
-    // "grand total / payable / total" first (the last one wins), then looser words, then any rupee figure.
-    const NUM = "(?:₹|rs\\.?|inr)?\\s*([0-9][0-9,]*(?:\\.[0-9]{1,2})?)";
-    const last = (re: RegExp) => { const all = [...raw.matchAll(re)]; return all.length ? Number(all[all.length - 1][1].replace(/,/g, "")) : undefined; };
-    total = last(new RegExp(`(?:grand total|net payable|amount payable|payable|total)[^0-9₹]{0,24}${NUM}`, "gi"))
-      ?? last(new RegExp(`(?:amount|bill|pay)[^0-9₹]{0,24}${NUM}`, "gi"))
-      ?? last(/(?:₹|rs\.?|inr)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/gi);
+    // Read amounts from text with the UPI id and long digit runs (phone numbers, ids) taken out, so a
+    // numeric UPI handle like 9876543210@ybl is never mistaken for the bill.
+    const body = (upi ? raw.replace(upi, " ") : raw).replace(/\b\d{7,}\b/g, " ");
+    // Several figures can appear ("item total ₹264, grand total ₹528", "delivery in 4 days"). Read the amount
+    // the customer pays, most specific first, and never a number that is really a count of days or items.
+    const AMT = "([0-9][0-9,]*(?:\\.[0-9]{1,2})?)(?![0-9,.]*\\d)(?!\\s*(?:days?|hours?|hrs?|weeks?|items?|pcs|pieces|strips?|x\\b))";
+    const CUR = "(?:₹|rs\\.?|inr)\\s*";
+    const last = (re: RegExp) => { const all = [...body.matchAll(re)]; return all.length ? Number(all[all.length - 1][1].replace(/,/g, "")) : undefined; };
+    total = last(new RegExp(`(?:grand total|net payable|amount payable|payable|total)[^0-9₹]{0,24}(?:${CUR})?${AMT}`, "gi"))
+      ?? last(new RegExp(`(?:amount|bill|pay(?:ment)?|due)[^0-9₹]{0,24}${CUR}${AMT}`, "gi"))          // keyword + currency marker
+      ?? last(new RegExp(`(?:amount|bill)[^0-9₹]{0,12}${AMT}\\s*(?:rupees|rs\\b|inr)`, "gi"))        // "bill amount 528 rupees"
+      ?? last(new RegExp(`(?:amount|bill)[^0-9₹]{0,10}${AMT}`, "gi"))                                  // "Bill: 528"
+      ?? last(new RegExp(`${CUR}${AMT}`, "gi"));                                                      // any rupee figure
   }
   if (total !== undefined && !(total > 0 && total < 100000)) total = undefined;
   if (/out of stock|not available|unavailable|not in stock|shortage|can'?t supply|cannot supply/i.test(raw)) return { kind: "unavailable", text };
-  if (total !== undefined) return { kind: "confirmed", total, text };
+  if (total !== undefined) return { kind: "confirmed", total, upi, eta, text };
   if (/confirm|accept|ready|will (deliver|dispatch)|available/i.test(raw)) return { kind: "no_total", text };
   return { kind: "unclear", text };
 }
@@ -302,6 +350,57 @@ const STAGE_MSG: Record<string, (w?: string) => string> = {
   delivered: () => "Your medicines have been delivered ✅ Please check that the pack matches your prescription. If anything is missing or looks different, tell me.",
 };
 
+
+// A Pine Labs payment event, checked against the order before the agent acts on it.
+function payEvent(state: DemoState, j: Record<string, any>): DemoResult {
+  const sys = "pinelabs";
+  const rx = state.rx!, o = state.order!;
+  const empty: DemoResult = { state, messages: [] };
+  const data = isObj(j.data) ? j.data : j;
+  const status = String(data.status ?? j.status ?? "").toUpperCase();
+  const evName = String(j.event ?? j.event_type ?? "");
+  const ids = [data.payment_link_id, data.merchant_payment_link_reference, data.order_id, data.merchant_order_reference, j.payment_link_id]
+    .filter((x): x is string => typeof x === "string" && !!x);
+  const known = [o.linkId, o.linkRef, o.payOrderId].filter(Boolean);
+  if (!ids.length) return { ...empty, desk: { ack: ack(sys, false, "No payment_link_id, order_id or reference in this event, so the agent can't tie it to the order and ignored it.") } };
+  if (!ids.some((x) => known.includes(x))) return { ...empty, desk: { ack: ack(sys, false, `Doesn't match this order (looking for ${known.join(" / ")}), so the agent ignored it.`) } };
+
+  const amt = isObj(data.amount) ? data.amount.value : isObj(data.order_amount) ? data.order_amount.value : isObj(j.amount) ? j.amount.value : undefined;
+  const paid = status === "PROCESSED" || /processed/i.test(evName);
+  const failed = status === "FAILED" || /failed/i.test(evName) || /failed/i.test(status);
+  const expired = status === "EXPIRED" || /expired/i.test(evName);
+  const cancelled = status === "CANCELLED" || /cancel/i.test(evName);
+
+  if (paid && !failed) {
+    if (typeof amt === "number" && amt !== o.amountValue) {
+      return { ...empty, desk: { ack: ack(sys, false, `Payment event amount (${amt}) differs from the amount requested (${o.amountValue}), so the agent did NOT treat it as paid.`) } };
+    }
+    const linkId = o.linkId ?? (typeof data.payment_link_id === "string" ? data.payment_link_id : undefined);
+    return {
+      state: { step: "dispatch_wait", rx, order: { ...o, linkId, stage: "payment received" } },
+      messages: [
+        t(`Pine Labs has approved your payment of ${money(o.total ?? 0)} ✅ Thank you, Ramesh.`),
+        t(`I've told ${PHARMACY}. I'll share the Delhivery tracking ID as soon as they send it 📦`),
+      ],
+      desk: {
+        ack: ack(sys, true, "Verified against the order: treated as paid."),
+        requests: [{ system: "pharmacy", label: `Payment confirmed: message to ${PHARMACY}`, text: `Order ${o.ref}: payment of ${money(o.total ?? 0)} approved by Pine Labs. Please dispatch and share the Delhivery tracking ID.` }],
+        examples: [{ system: "pharmacy", items: [{ label: "Dispatched with tracking ID (sample)", json: `Payment received, thank you! Your order has been handed to Delhivery.\nTracking ID: 3714910042305\nDelivery in ${o.eta ?? "4 days"}.` }] }],
+      },
+    };
+  }
+  if (failed) {
+    return { state: { step: "pay_retry", rx, order: o }, messages: [t("The payment didn't go through. Nothing was charged to the order. Would you like to try again with a new payment link?"), NEW_LINK], desk: { ack: ack(sys, true, "Read as: payment failed.") } };
+  }
+  if (expired || cancelled) {
+    return { state: { step: "pay_retry", rx, order: o }, messages: [t(`The payment ${expired ? "link has expired" : "was cancelled"}, so nothing has been paid. Would you like a new payment link?`), NEW_LINK], desk: { ack: ack(sys, true, `Read as: ${expired ? "expired" : "cancelled"}.`) } };
+  }
+  if (status === "CLICKED" || status === "PAYMENT_INITIATED" || /clicked|initiated/i.test(evName)) {
+    return { state, messages: [t("I can see the payment has started 👀 I'll wait for Pine Labs to approve it.")], desk: { ack: ack(sys, true, "Read as: payment started.") } };
+  }
+  return { ...empty, desk: { ack: ack(sys, false, `Status “${status || "(none)"}” isn't one the agent acts on.`) } };
+}
+
 export function orderEvent(state: DemoState | null, ev: OrderEvent, c: Clock, now: number): DemoResult {
   const sys = ev.system;
   const raw = (ev.raw ?? "").trim();
@@ -315,28 +414,50 @@ export function orderEvent(state: DemoState | null, ev: OrderEvent, c: Clock, no
 
   // ----- pharmacy -----
   if (sys === "pharmacy") {
-    if (state.step === "ship_wait") {
+    if (state.step === "po_wait") {
+      const r = parsePharmacy(raw);
+      if (r.kind === "unavailable") {
+        return {
+          state: { step: "po_decide", rx, order: o },
+          messages: [t(`${PHARMACY} says some items aren't available: “${clip(r.text)}”\nI won't substitute anything on my own. Would you like to cancel this order?`), CANCEL],
+          desk: { ack: ack(sys, true, "Read as: item(s) unavailable.") },
+        };
+      }
+      if (r.kind === "confirmed" && r.total !== undefined) {
+        const o2: OrderData = { ...o, total: r.total, upi: r.upi, eta: r.eta };
+        const lines = [`${PHARMACY} has confirmed your order ✅`, "", `🧾 Bill: ${money(r.total)}`];
+        if (r.eta) lines.push(`🚚 Delivery: within ${r.eta}`);
+        if (r.upi) lines.push(`💳 Pay to UPI ID: ${r.upi}`);
+        lines.push("", `They're asking for your payment approval. Shall I go ahead and pay ${money(r.total)}?`);
+        return {
+          state: { step: "pay_approve", rx, order: o2 },
+          messages: [t(lines.join("\n")), APPROVE],
+          desk: { ack: ack(sys, true, `Read as: confirmed. Bill ${money(r.total)}${r.eta ? `, delivery ${r.eta}` : ", no delivery time found"}${r.upi ? `, UPI ${r.upi}` : ", no UPI id found"}. Waiting for Ramesh's approval.`) },
+        };
+      }
+      if (r.kind === "no_total") {
+        return { state, messages: [t(`${PHARMACY} confirmed, but hasn't shared the bill amount yet. I'll wait for the amount before asking you to approve a payment.`)], desk: { ack: ack(sys, true, "Confirmed, but no bill amount found: the agent is waiting for one.") } };
+      }
+      return { ...empty(state), desk: { ack: ack(sys, false, "Couldn't tell whether this confirms the order or gives a bill amount, so the agent did nothing.") } };
+    }
+
+    if (state.step === "dispatch_wait") {
+      const awb = extractAwb(raw);
+      if (awb) {
+        const eta = extractEta(raw) ?? o.eta;
+        return {
+          state: { step: "ship_wait", rx, order: { ...o, awb, eta, stage: "dispatched" } },
+          messages: [t(`Your order has been dispatched 🚚\nDelhivery tracking ID: ${awb}${eta ? `\nExpected delivery: within ${eta}` : ""}\nYou can track your consignment in the Delhivery app. I'll tell you here if there's any news.`)],
+          desk: { ack: ack(sys, true, `Read as: dispatched, tracking ID ${awb}.`) },
+        };
+      }
+      return { state, messages: [t(`Update from ${PHARMACY}: “${clip(raw)}”`)], desk: { ack: ack(sys, true, "No tracking ID found in this; relayed to Ramesh. The agent is still waiting for the ID.") } };
+    }
+
+    if (["pay_approve", "link_wait", "pay_wait", "pay_retry", "ship_wait"].includes(state.step)) {
       return { state, messages: [t(`Update from ${PHARMACY}: “${clip(raw)}”`)], desk: { ack: ack(sys, true, "Relayed to Ramesh.") } };
     }
-    if (state.step !== "po_wait") return wrongNow();
-    const r = parsePharmacy(raw);
-    if (r.kind === "unavailable") {
-      return {
-        state: { step: "po_decide", rx, order: o },
-        messages: [t(`${PHARMACY} says some items aren't available: “${clip(r.text)}”\nI won't substitute anything on my own. Would you like to cancel this order?`), CANCEL],
-        desk: { ack: ack(sys, true, "Read as: item(s) unavailable.") },
-      };
-    }
-    if (r.kind === "confirmed" && r.total !== undefined) {
-      const o2: OrderData = { ...o, total: r.total };
-      const res = makeLink(rx, o2, c, now, [t(`${PHARMACY} has confirmed your order ✅\nTotal: ${money(r.total)}\nI'm creating a secure payment link for you now 🔗`)]);
-      res.desk = { ...res.desk, ack: ack(sys, true, `Read as: confirmed, total ${money(r.total)}.`) };
-      return res;
-    }
-    if (r.kind === "no_total") {
-      return { state, messages: [t(`${PHARMACY} confirmed, but hasn't shared the total yet. I'll wait for the amount before sending a payment link.`)], desk: { ack: ack(sys, true, "Confirmed, but no total found: the agent is waiting for an amount.") } };
-    }
-    return { ...empty(state), desk: { ack: ack(sys, false, "Couldn't tell whether this confirms the order or gives a total, so the agent did nothing.") } };
+    return wrongNow();
   }
 
   // ----- Pine Labs -----
@@ -345,6 +466,10 @@ export function orderEvent(state: DemoState | null, ev: OrderEvent, c: Clock, no
     if (!isObj(j)) return { ...empty(state), desk: { ack: ack(sys, false, "That isn't valid JSON, so it can't be a Pine Labs response or webhook.") } };
 
     if (state.step === "link_wait") {
+      // The reply to our create-link call has a payment_link; anything else shaped like an event is
+      // a payment event and is checked against our reference (so the create-link reply can be skipped).
+      const looksLikeEvent = !j.payment_link && (j.event || j.event_type || typeof j.status === "string" || isObj(j.data));
+      if (looksLikeEvent) return payEvent(state, j);
       const failed = j.error || j.error_code || (typeof j.status === "number" && j.status >= 400) || (typeof j.code === "string" && /ERROR|FAIL/i.test(j.code));
       if (failed || !j.payment_link || !j.payment_link_id) {
         return {
@@ -361,51 +486,11 @@ export function orderEvent(state: DemoState | null, ev: OrderEvent, c: Clock, no
       const o2: OrderData = { ...o, link: String(j.payment_link), linkId: String(j.payment_link_id), payOrderId: j.order_id ? String(j.order_id) : undefined };
       return {
         state: { step: "pay_wait", rx, order: o2 },
-        messages: [t(`Please pay ${money(o.total ?? 0)} using this secure link:\n${o2.link}\n\nI'll confirm here as soon as the payment goes through ⏳`)],
+        messages: [t(`Please complete the payment of ${money(o.total ?? 0)} using this secure link:\n${o2.link}\n\nI'll confirm here as soon as Pine Labs approves it ⏳`)],
         desk: { ack: ack(sys, true, "Link recorded and sent to Ramesh."), examples: [webhookExamples(o2)] },
       };
     }
-
-    if (state.step === "pay_wait") {
-      const data = isObj(j.data) ? j.data : j;
-      const status = String(data.status ?? j.status ?? "").toUpperCase();
-      const evName = String(j.event ?? j.event_type ?? "");
-      const ids = [data.payment_link_id, data.merchant_payment_link_reference, data.order_id, data.merchant_order_reference, j.payment_link_id]
-        .filter((x): x is string => typeof x === "string" && !!x);
-      const known = [o.linkId, o.linkRef, o.payOrderId].filter(Boolean);
-      if (!ids.length) return { ...empty(state), desk: { ack: ack(sys, false, "No payment_link_id, order_id or reference in this event, so the agent can't tie it to the order and ignored it.") } };
-      if (!ids.some((x) => known.includes(x))) return { ...empty(state), desk: { ack: ack(sys, false, `Doesn't match this order (looking for ${known.join(" / ")}), so the agent ignored it.`) } };
-
-      const amt = isObj(data.amount) ? data.amount.value : isObj(data.order_amount) ? data.order_amount.value : isObj(j.amount) ? j.amount.value : undefined;
-      const paid = status === "PROCESSED" || /processed/i.test(evName);
-      const failed = status === "FAILED" || /failed/i.test(evName) || /failed/i.test(status);
-      const expired = status === "EXPIRED" || /expired/i.test(evName);
-      const cancelled = status === "CANCELLED" || /cancel/i.test(evName);
-
-      if (paid && !failed) {
-        if (typeof amt === "number" && amt !== o.amountValue) {
-          return { ...empty(state), desk: { ack: ack(sys, false, `Payment event amount (${amt}) differs from the link (${o.amountValue}), so the agent did NOT treat it as paid.`) } };
-        }
-        return {
-          state: { step: "ship_wait", rx, order: { ...o, stage: "payment received" } },
-          messages: [t(`Payment of ${money(o.total ?? 0)} received ✅ Thank you, Ramesh.`), t(`I've told ${PHARMACY} to go ahead. I'll update you as soon as it ships 📦`)],
-          desk: {
-            ack: ack(sys, true, "Verified against the order: treated as paid."),
-            requests: [{ system: "pharmacy", label: `Payment confirmed: dispatch request to ${PHARMACY}`, text: `Order ${o.ref}: payment of ${money(o.total ?? 0)} received. Please dispatch and share the courier details.` }],
-          },
-        };
-      }
-      if (failed) {
-        return { state: { step: "pay_retry", rx, order: o }, messages: [t("The payment didn't go through. Nothing was charged to the order. Would you like a new payment link?"), NEW_LINK], desk: { ack: ack(sys, true, "Read as: payment failed.") } };
-      }
-      if (expired || cancelled) {
-        return { state: { step: "pay_retry", rx, order: o }, messages: [t(`The payment link ${expired ? "has expired" : "was cancelled"}, so I haven't placed anything. Would you like a new one?`), NEW_LINK], desk: { ack: ack(sys, true, `Read as: link ${expired ? "expired" : "cancelled"}.`) } };
-      }
-      if (status === "CLICKED" || status === "PAYMENT_INITIATED" || /clicked|initiated/i.test(evName)) {
-        return { state, messages: [t("I can see the payment link was opened 👀 I'll wait for the payment to complete.")], desk: { ack: ack(sys, true, "Read as: link opened / payment started.") } };
-      }
-      return { ...empty(state), desk: { ack: ack(sys, false, `Status “${status || "(none)"}” isn't one the agent acts on.`) } };
-    }
+    if (state.step === "pay_wait") return payEvent(state, j);
     return wrongNow();
   }
 

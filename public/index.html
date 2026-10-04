@@ -522,7 +522,7 @@ function setExamples(set) {
   box.innerHTML = "";
   set.items.forEach((it) => {
     const b = document.createElement("button"); b.type = "button"; b.textContent = it.label;
-    b.onclick = () => { const ta = box.closest("section").querySelector("textarea"); ta.value = JSON.stringify(it.json, null, 2); ta.focus(); };
+    b.onclick = () => { const ta = box.closest("section").querySelector("textarea"); ta.value = typeof it.json === "string" ? it.json : JSON.stringify(it.json, null, 2); ta.focus(); };
     box.appendChild(b);
   });
 }

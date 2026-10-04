@@ -199,33 +199,43 @@ Saath mode. The agent reads the real photo and decides what to say and which req
 | # | You do | The agent does |
 | --- | --- | --- |
 | 1 | Menu → 💊 Upload a prescription, or just attach any photo with 📎 | "Got it, reading your prescription 🔍", then the summary: **1. Telma CT 40 — 1-0-0 · 2. Ecosprin AV 75 — 1-0-0 · 3. Pan-D 40 — 1-0-0**, and **Tests advised (9)**. Then the offer: **[Yes, order them] [Not now]**. (With `RX_READER=live`, any line it can't read is flagged and left out of the order.) |
-| 2 | Tap **Yes, order them** | "Placing your order with Sunrise Pharmacy…". Backend input shows the order request (as a message) |
-| 3 | Paste the pharmacy's reply in **Pharmacy → agent**, e.g. `Order confirmed. Total ₹528. Delivery in 2 days.` | Reads the total, tells Ramesh, and shows the **Create payment link** request to Pine Labs (documented endpoint and fields, masked token) |
-| 4 | In **Pine Labs → agent** click **Create-link response (documented 201)** and Send | Sends Ramesh the payment link and keeps waiting |
-| 5 | Click **Payment processed (documented webhook)** and Send | Checks the event against the order (link id, reference, amount). If it matches: "Payment received ✅", and a dispatch request to the pharmacy appears |
-| 6 | In **Delhivery → agent** paste a status or tracking JSON: `Pending`, `Ready for Pickup`, `In Transit`, `Out for Delivery`, `Delivered` | Tells Ramesh at each stage. On Delivered it asks him to check the pack against the prescription |
+| 2 | Tap **Yes, order them** | "Placing your order with Sunrise Pharmacy…". Backend input shows the order sent to the pharmacy |
+| 3 | In **Pharmacy → agent** paste the pharmacy's plain-text reply with the **UPI ID, the bill amount, the 4-day delivery time and a request for payment approval** (see below; the **Confirmed with bill, UPI, delivery (sample)** button fills one in) | Tells Ramesh the bill, delivery time and UPI ID, and **asks him to approve the payment**: **[Approve payment] [Cancel order]**. Nothing is paid or sent to Pine Labs yet |
+| 4 | Tap **Approve payment** | "Approved ✅ I'm starting the payment…". Backend input shows the Pine Labs **Create payment link** request (documented endpoint and fields, masked token; the pharmacy's UPI ID is carried in the description) |
+| 5 | In **Pine Labs → agent** click **Payment processed (documented webhook)** and Send. (You can skip the create-link response: the event is matched to the order by our payment reference. Or click **Create-link response** first to see the longer route) | Checks the event against the order (reference, amount). If it matches: "Pine Labs has approved your payment of ₹528 ✅", and a message to the pharmacy appears asking it to dispatch and share the Delhivery tracking ID |
+| 6 | In **Pharmacy → agent** paste the pharmacy's reply with the tracking ID (the **Dispatched with tracking ID (sample)** button fills one in) | Gives Ramesh the **Delhivery tracking ID** and the delivery time, and tells him he can track the consignment in the Delhivery app |
+| 7 (optional) | In **Delhivery → agent** paste a status or tracking JSON: `In Transit`, `Out for Delivery`, `Delivered` | Updates Ramesh at each stage. Not needed if you are showing the Delhivery app itself |
 
 Every box shows a ✓ or ✗ with how the agent read what you sent, so the audience can see why it acted or didn't.
 
-**What to paste as the pharmacy's reply** (no pharmacy API is documented, so the agent reads free text or simple JSON):
+**What to paste as the pharmacy's reply.** There is no pharmacy API, so the agent reads plain text (or simple JSON). For step 3, include these, in any wording:
 
-| Pharmacy says | Agent does |
-| --- | --- |
-| `Order confirmed. Total ₹528. Delivery in 2 days.` (any wording that confirms and states **one total**: `Total`, `Grand total`, `Payable`, `Amount`, `Bill`, with `₹`, `Rs`, `INR` or a bare number) | Tells Ramesh, creates the Pine Labs payment link for that amount |
-| `{"status":"CONFIRMED","total":528}` (JSON with `total`, `grand_total`, `total_amount` or `amount`) | Same |
-| Several figures, e.g. `Item total ₹264, grand total ₹528` | Uses the grand total / payable figure, else the last "total" mentioned |
-| `Order confirmed, will dispatch soon` (no amount) | Waits for an amount; no payment link yet |
-| `Pan-D 40 is out of stock` (also `not available`, `unavailable`, `shortage`, `can't supply`) | Tells Ramesh, offers to cancel, **does not substitute** (even if a total is mentioned) |
-| Anything it can't classify (`ok bhaiya`, `Total ₹0`, an amount of ₹1,00,000 or more) | Does nothing; the panel shows ✗ with why |
+```
+Hello Mr. Sharma, your order is confirmed.
+Bill amount: ₹528
+Delivery in 4 days.
+UPI ID: sunrise.pharmacy@okicici
+Kindly approve the payment so we can dispatch.
+```
 
-After payment is confirmed, anything the pharmacy sends is relayed to Ramesh as "Update from Sunrise Pharmacy: …". Totals are treated as rupees. Give **one** total per reply.
+| It looks for | Accepted forms | If missing |
+| --- | --- | --- |
+| **Bill amount** (one amount per reply) | `Total ₹528`, `Bill amount: 528`, `Payable: INR 1,528.50`, `Rs 528`, `grand total ₹528` (with several totals it takes the grand total / payable / last one). Never a count: `4 days` or `3 items` are not read as the bill | No usable amount: the agent waits and asks for one (no approval request) |
+| **UPI ID** | `name@okicici`, `9876543210@ybl`. An email address (`orders@site.com`) is not taken as a UPI ID | Still asks for approval, just without a UPI ID |
+| **Delivery time** | `4 days`, `2-3 days`, `48 hours`, `1 day` (the one near the word "deliver" wins, not `30 days supply`) | Omitted from the message |
+| **Out of stock** | `out of stock`, `not available`, `unavailable`, `shortage`, `can't supply` | Tells Ramesh, offers to cancel, **does not substitute** (even if a bill is mentioned) |
+| *(anything else)* | `ok bhaiya`, `Total ₹0`, a bill of ₹1,00,000 or more | Nothing happens; the panel shows ✗ with why |
+
+For step 6, include `Tracking ID: 3714910042305` (also `AWB …`, `Waybill …`, `Consignment no …`; the ID needs digits and 8 to 20 characters). A reply without one, like `Packing your order now`, is passed to Ramesh as "Update from Sunrise Pharmacy" and the agent keeps waiting. Amounts are treated as rupees.
 
 **Failure injections (the agent must handle each on its own)**
 
 | Inject | Paste | Expected |
 | --- | --- | --- |
 | Item out of stock | Pharmacy: `Pan-D 40 is out of stock this week` | Tells Ramesh, offers to cancel, **does not substitute** |
-| Pharmacy confirms with no total | Pharmacy: `Order confirmed` | Waits for an amount; no payment link |
+| Pharmacy confirms with no bill amount | Pharmacy: `Order confirmed` | Waits for an amount; no approval request |
+| Ramesh declines | Tap **Cancel order** at the approval step | Cancels; nothing is paid |
+| Ramesh stays silent | (nothing) | Agent keeps asking; never pays without his OK |
 | Pine Labs error | Pine Labs: `{"error":"UNAUTHORIZED"}` | "I couldn't create the payment link", offers **Try again** (new reference) |
 | Link for the wrong amount | Create-link response with a different `amount.value` | Not forwarded to Ramesh |
 | "I paid" with no webhook | Ramesh types `I paid` | Refuses to count it; only the gateway's event counts |
@@ -233,7 +243,7 @@ After payment is confirmed, anything the pharmacy sends is relayed to Ramesh as 
 | Event with the wrong amount | Processed webhook with a different `amount.value` | **Not** treated as paid |
 | Payment failed | Click **Payment failed (illustrative)** | Says so, offers **Send a new link** |
 | Link expired | Click **Link expired (illustrative)** | Says so, offers a new link, places nothing |
-| Wrong source for the moment | Delhivery event before payment | ✗ "Not expected right now" |
+| Wrong source for the moment | Delhivery update before the pharmacy has sent a tracking ID | ✗ "Not expected right now" |
 | Delivery problem | Delhivery: `RTO Initiated`, `Undelivered`, `Lost`, `Cancelled` | Flags the problem, takes **no action**, won't reorder without Ramesh |
 | Replayed event | Send the processed webhook twice | The second is ignored |
 

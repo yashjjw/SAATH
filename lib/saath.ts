@@ -11,7 +11,7 @@ export type Step =
   | "menu" | "reason" | "doctor" | "other_query" | "other_pick" | "when" | "date" | "daypart"
   | "followup" | "done" | "end"
   // prescription -> order -> payment -> delivery (lib/order.ts)
-  | "rx_wait" | "rx_offer" | "po_wait" | "po_decide" | "link_wait" | "pay_wait" | "pay_retry" | "ship_wait" | "delivered";
+  | "rx_wait" | "rx_offer" | "po_wait" | "po_decide" | "pay_approve" | "link_wait" | "pay_wait" | "pay_retry" | "dispatch_wait" | "ship_wait" | "delivered";
 
 export interface DemoState { step: Step; date?: string; rx?: RxData; order?: OrderData }
 export interface Opt { id: string; label: string }
@@ -93,7 +93,7 @@ function reprompt(s: DemoState, lead: string): DemoResult {
     followup: [FOLLOW],
     done: [MENU],
     end: [MENU],
-    rx_wait: [], rx_offer: [], po_wait: [], po_decide: [], link_wait: [], pay_wait: [], pay_retry: [], ship_wait: [], delivered: [],
+    rx_wait: [], rx_offer: [], po_wait: [], po_decide: [], pay_approve: [], link_wait: [], pay_wait: [], pay_retry: [], dispatch_wait: [], ship_wait: [], delivered: [],
   };
   return { state: s, messages: [t(lead), ...by[s.step]] };
 }
@@ -124,7 +124,7 @@ export function saathReply(state: DemoState | null | undefined, input: DemoInput
   if (input.event) return orderEvent(state ?? null, input.event, clock, now);
   if (input.id === "restart" || GREETING.test(text) || !state) return greet();
   // Steps of the prescription -> order -> delivery workflow have their own handling.
-  if (state.rx || state.step.startsWith("rx_") || ["po_wait", "po_decide", "link_wait", "pay_wait", "pay_retry", "ship_wait", "delivered"].includes(state.step)) {
+  if (state.rx || state.step.startsWith("rx_") || ["po_wait", "po_decide", "pay_approve", "link_wait", "pay_wait", "pay_retry", "dispatch_wait", "ship_wait", "delivered"].includes(state.step)) {
     const r = orderText(state, input, clock, now);
     if (r) return r;
   }

@@ -37,7 +37,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // A prescription photo in Saath mode: the real reader, then the order workflow (lib/order.ts).
     if (mode === "saath" && image) {
-      const busy = ["po_wait", "po_decide", "link_wait", "pay_wait", "pay_retry", "ship_wait"];
+      const busy = ["po_wait", "po_decide", "pay_approve", "link_wait", "pay_wait", "pay_retry", "dispatch_wait", "ship_wait"];
       if (state && busy.includes(state.step)) {
         return res.json({ state, messages: [{ kind: "text", text: "Let's finish your current order first 🙏 I'll be ready for the next prescription right after." }] });
       }
