@@ -124,7 +124,8 @@ At step 3's doctor buttons tap **Someone else**:
 | You do | Saath says |
 | --- | --- |
 | Pick **2. Dr. Joshi** | I can't book with Dr. Joshi right now. Would you like to see Dr. Kulkarni instead? |
-| Menu options 2, 4, 5 or 6 | I can't help with that just yet. Right now I can book appointments for you 📅 (+ menu) |
+| Menu options 4, 5 or 6 | I can't help with that just yet. Right now I can book appointments for you 📅 (+ menu) |
+| Menu option 2, **Doctor visit** | Starts the doctor's side: see the section below |
 | Menu option 3, **Upload a prescription** | Send me a photo of the prescription using 📎 and I'll read it for you. (A photo then goes through the real prescription reader.) |
 | Anything unrecognised at the reason step | I can help you book a cardiologist. Tell me, for example, "I need to see a heart doctor". |
 | **Evening** or **Either** on the earliest-slot path | The earliest slot I can ask for is in the morning. Would you like a morning slot? |
@@ -139,6 +140,34 @@ At step 3's doctor buttons tap **Someone else**:
 - **Photo:** 📎 opens the gallery, 📷 the camera. A preview opens with a caption box; send it and the photo goes to the prescription reader. Use a made-up prescription only. Reading it needs `GEMINI_API_KEY`; without it Saath replies that it couldn't read the photo.
 - Voice notes need `CHAT_TEST_PASSWORD` and `GNANI_API_KEY`, and a microphone the browser can use (localhost or https).
 - Spoken English only for now (`en-IN`). Voice notes can be up to about 55 seconds.
+
+---
+
+### Doctor visit: the doctor's side of the same chat (Saath mode)
+
+At the clinic, Ramesh picks **🩺 Doctor visit** from the menu (or types "doctor visit"). Saath asks before sharing anything, then gives Dr. Kulkarni a history summary and she asks questions in the same thread, by typing, by voice note, or with the suggested-question buttons. Everything is read from Ramesh's record, which is **fictional mock data** in `lib/fixtures/ramesh.ts` (edit it freely).
+
+| Step | You do | Saath does |
+| --- | --- | --- |
+| 1 | Menu → **🩺 Doctor visit** | "I'll prepare a summary of your history for Dr. Meera Kulkarni. Shall I share it with her for this visit?" **[Yes, share] [Not now]** |
+| 2 | **Yes, share** | Shares, then sends the **history summary (about 190 to 200 words)**: who, last visit, recorded problems, medicines (including that amlodipine 5 mg from 14 Mar 2026 is not on today's prescription and no document records it stopping), the 9 advised tests with no results, no symptoms reported, no adherence records, and the coverage gaps. Then **[Current medicines] [Allergies] [Lab results] [Previous visits] [Reported symptoms] [Back to menu]** |
+| 3 | Ask questions | Answers from the record, each with its source and date |
+| 4 | **Back to menu** (or "hi") | Stops sharing and returns to the menu |
+
+Questions it understands (any wording, or the buttons): medicines, allergies, lab results or a specific test (`has he had an HbA1c`, `any ECG`, `did he have an echo`), previous visits, problems, reported symptoms (`any dizziness`), who the caregiver is, why he is here. How it answers:
+
+| Doctor asks | Saath says |
+| --- | --- |
+| `what is he on?` | The medicines with source and date, including the amlodipine discrepancy |
+| `any allergies?` | None recorded in any connected source: "an absence of records, not confirmation that he has none" |
+| `has he had an HbA1c` | Advised on the prescription, but no result in any connected source, with the date range it covers |
+| `did he have an echo` | "No record of echo in any connected source, covering Nov 2023 to today. Nothing before Nov 2023 is in any connected source." |
+| `is he taking the medicines` | "I can't tell you that." Evidence: none yet (no dispensing or reminder records) |
+| `could this be anaemia` | "I can't read it for you." plus what the record holds and what is absent |
+| `should I increase the amlodipine` | "That's yours to decide." plus the same adjacent facts |
+| Anything else | "I don't have that in the record." and what it can answer |
+
+The prescription medicines and tests come from `lib/fixtures/prescription.ts` (the 9 tests there are placeholders). Voice notes work here too, so the doctor can ask aloud.
 
 ---
 
@@ -265,5 +294,6 @@ For step 6, include `Tracking ID: 3714910042305` (also `AWB …`, `Waybill …`,
 | Chat UI (transcript card, buttons, list) | `public/index.html` |
 | Clinician prompt and record | `prompts/clinic.md`, `lib/fixtures/clinic.ts` |
 | Scripted prescription (edit the tests here) | `lib/fixtures/prescription.ts` |
+| Doctor visit (summary and questions) | `lib/doctor.ts` (logic), `lib/fixtures/ramesh.ts` (the record), `lib/saath.ts` (menu option 2) |
 | Prescription → order workflow | `lib/order.ts` (logic), `api/chat.ts` (photo + events), Backend input panel in `public/index.html` |
 | Date and clock logic | `lib/clock.ts` |

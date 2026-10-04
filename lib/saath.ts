@@ -5,12 +5,14 @@
 // renders the buttons/list/cards; a plain-text channel would degrade them to numbered options.
 import { makeClock, type Clock } from "./clock.js";
 import { callLines, CALL_META } from "./callscript.js";
+import { doctorAnswer, summaryText } from "./doctor.js";
 import { orderText, orderEvent, type RxData, type OrderData, type DeskUpdate, type OrderEvent } from "./order.js";
 
 export type Step =
   | "menu" | "reason" | "doctor" | "other_query" | "other_pick" | "when" | "date" | "daypart"
   | "followup" | "done" | "end"
   // prescription -> order -> payment -> delivery (lib/order.ts)
+  | "doctor_consent" | "doctor_chart"
   | "rx_wait" | "rx_offer" | "po_wait" | "po_decide" | "pay_approve" | "link_wait" | "pay_wait" | "pay_retry" | "dispatch_wait" | "ship_wait" | "delivered";
 
 export interface DemoState { step: Step; date?: string; rx?: RxData; order?: OrderData }
@@ -59,6 +61,11 @@ const FOLLOW: Msg = {
   kind: "buttons",
   options: [{ id: "both", label: "Do both" }, { id: "remind", label: "Just remind me" }, { id: "none", label: "No thanks" }],
 };
+const DOC_CONSENT: Msg = { kind: "buttons", options: [{ id: "doc_share", label: "Yes, share" }, { id: "doc_no", label: "Not now" }] };
+const DOC_ASK: Msg = {
+  kind: "buttons",
+  options: [{ id: "q_meds", label: "Current medicines" }, { id: "q_allergy", label: "Allergies" }, { id: "q_labs", label: "Lab results" }, { id: "q_visits", label: "Previous visits" }, { id: "q_symptoms", label: "Reported symptoms" }, { id: "doc_back", label: "Back to menu" }],
+};
 const BACK: Msg = { kind: "buttons", options: [{ id: "back_docs", label: "Back to my doctors" }] };
 
 const DOCTOR_CARD: Msg = {
@@ -93,6 +100,7 @@ function reprompt(s: DemoState, lead: string): DemoResult {
     followup: [FOLLOW],
     done: [MENU],
     end: [MENU],
+    doctor_consent: [DOC_CONSENT], doctor_chart: [DOC_ASK],
     rx_wait: [], rx_offer: [], po_wait: [], po_decide: [], pay_approve: [], link_wait: [], pay_wait: [], pay_retry: [], dispatch_wait: [], ship_wait: [], delivered: [],
   };
   return { state: s, messages: [t(lead), ...by[s.step]] };
@@ -143,11 +151,41 @@ export function saathReply(state: DemoState | null | undefined, input: DemoInput
           messages: [t("Send me a photo of the prescription using 📎 and I'll read it for you.")],
         };
       }
-      if (/^menu_[2456]$/.test(input.id ?? "") || /^\s*[2456]\b/.test(text)) {
+      if (has(input, "menu_2", /^\s*2\b|doctor visit|summary.*doctor|see the doctor/i)) {
+        return {
+          state: { step: "doctor_consent" },
+          messages: [t("Of course 👍 I'll prepare a summary of your history for *Dr. Meera Kulkarni*.\nShall I share it with her for this visit? You can stop sharing any time."), DOC_CONSENT],
+        };
+      }
+      if (/^menu_[456]$/.test(input.id ?? "") || /^\s*[456]\b/.test(text)) {
         return { state, messages: [t("I can't help with that just yet. Right now I can book appointments for you 📅"), MENU] };
       }
       return reprompt(state, "Please choose one from the menu 👇");
     }
+
+    case "doctor_consent":
+      if (has(input, "doc_share", /^\s*(yes|ok(ay)?|sure|share|go ahead|haan)\b/i)) {
+        return {
+          state: { step: "doctor_chart" },
+          messages: [
+            t("Thank you, Ramesh. Sharing with Dr. Kulkarni now 🔒"),
+            t(`Dr. Kulkarni, here is Ramesh Sharma's history from the record, in about 200 words:`),
+            t(summaryText(clock)),
+            t("Ask me anything about the record."),
+            DOC_ASK,
+          ],
+        };
+      }
+      if (has(input, "doc_no", /^\s*(no|not now|nahi|later)\b/i)) {
+        return { state: { step: "menu" }, messages: [t("No problem 🙏 I haven't shared anything. Is there anything else I can help you with?"), MENU] };
+      }
+      return reprompt(state, "Shall I share your history with Dr. Kulkarni for this visit?");
+
+    case "doctor_chart":
+      if (input.id === "doc_back" || /^\s*(back|menu|stop sharing|done)\b/i.test(text)) {
+        return { state: { step: "menu" }, messages: [t("Okay, I've stopped sharing. Back to the menu 👇"), MENU] };
+      }
+      return { state, messages: [t(doctorAnswer(text, input.id, clock)), DOC_ASK] };
 
     case "reason":
       if (/cardio|heart/i.test(text)) {

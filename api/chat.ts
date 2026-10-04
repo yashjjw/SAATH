@@ -35,11 +35,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Scripted demo: deterministic, no model call. A photo falls through to the real reader below.
     if (mode === "saath" && !image) return res.json(saathReply(state, { id, text: caption, now, tz, event }));
 
+
     // A prescription photo in Saath mode: the real reader, then the order workflow (lib/order.ts).
     if (mode === "saath" && image) {
       const busy = ["po_wait", "po_decide", "pay_approve", "link_wait", "pay_wait", "pay_retry", "dispatch_wait", "ship_wait"];
       if (state && busy.includes(state.step)) {
-        return res.json({ state, messages: [{ kind: "text", text: "Let's finish your current order first 🙏 I'll be ready for the next prescription right after." }] });
+        return res.json({ state: state, messages: [{ kind: "text", text: "Let's finish your current order first 🙏 I'll be ready for the next prescription right after." }] });
       }
       if (!IMG_MIME.test(image.mime)) {
         return res.json({ state, messages: [{ kind: "text", text: "I can read photos for now (JPG or PNG)." }] });
