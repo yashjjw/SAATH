@@ -45,7 +45,7 @@ After your last line the call ends and an "Appointment confirmed" card appears: 
 
 ## 2. Saath chat: book an appointment (Ramesh Sharma, Indore)
 
-Saath mode, start of a fresh thread. The day divider shows **today's real date** and every bubble shows the **current system time** (nothing is pinned). Dates below use an example where today is Sunday 4 Oct.
+Saath mode, start of a fresh thread. The day divider shows **today's real date**. Message bubbles carry no timestamps (only delivery ticks on yours, and a 🔊 on Saath's replies); the one clock time in the thread is in the "Saath called Heartcare Clinic · {time}" note. Dates below use an example where today is Sunday 4 Oct.
 
 ### Main path
 

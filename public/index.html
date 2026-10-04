@@ -49,8 +49,9 @@
   .msg.tail.out::before, .msg.tail.in::before { content: ""; position: absolute; top: 0; width: 8px; height: 13px; }
   .msg.tail.out::before { right: -8px; background: var(--out); clip-path: polygon(0 0, 100% 0, 0 100%); }
   .msg.tail.in::before { left: -8px; background: var(--in); clip-path: polygon(0 0, 100% 0, 100% 100%); }
-  .msg .body::after { content: ""; display: inline-block; width: 76px; height: 1px; }
-  .msg.out .body::after { width: 92px; }
+  .msg .body::after { content: ""; display: inline-block; width: 26px; height: 1px; }
+  .msg.out .body::after { width: 30px; }
+  .msg.nometa .body::after { display: none; }
   .meta { position: absolute; right: 7px; bottom: 3px; font-size: 11px; color: var(--time); display: flex; align-items: center; gap: 3px; }
   .meta svg { width: 16px; height: 11px; }
   .meta .read { color: var(--tick); }
@@ -78,7 +79,6 @@
   body.clinic .avatar { background: #3b82c4; }
   body.clinic .msg.in { max-width: 96%; }
   body.clinic .msg.in .body { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; line-height: 1.4; }
-  body.clinic .msg.in .body::after { width: 60px; }
   .chips { align-self: flex-start; display: flex; flex-wrap: wrap; gap: 6px; max-width: 90%; margin: 4px 0 2px; }
   .chip { background: var(--in); color: #027eb5; border: 0; border-radius: 18px; padding: 9px 16px; font: inherit; font-size: 14px; font-weight: 500; cursor: pointer; box-shadow: 0 1px .5px var(--shadow); }
   .chip.list { border-radius: 8px; width: 100%; text-align: center; padding: 11px 16px; }
@@ -182,7 +182,6 @@ function askKey() {
   if (k !== null) sessionStorage.setItem("saath_key", k);
   return key();
 }
-const hhmm = () => new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).replace(" AM", " am").replace(" PM", " pm");
 const dayLabel = () => { const n = new Date(); return `${n.toLocaleDateString("en-GB", { weekday: "long" })}, ${n.getDate()} ${n.toLocaleDateString("en-GB", { month: "short" })}`; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const esc = (s) => s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
@@ -194,19 +193,19 @@ function system(t) {
   const d = document.createElement("div"); d.className = "sys"; d.textContent = t;
   log.appendChild(d); lastSide = null; scroll();
 }
-function bubble(side, t, imgUrl, time, extra) {
+function bubble(side, t, imgUrl, extra) {
   const d = document.createElement("div");
   const first = lastSide !== side;
   d.className = `msg ${side}${first ? " tail" : " follow"}${imgUrl && !t ? " imgonly" : ""}${extra ? " " + extra : ""}`;
   if (imgUrl) { const p = document.createElement("div"); p.className = "photo"; const i = document.createElement("img"); i.src = imgUrl; p.appendChild(i); d.appendChild(p); }
   if (t) { const b = document.createElement("div"); b.className = "body"; b.innerHTML = fmt(t); d.appendChild(b); }
   const m = document.createElement("div"); m.className = "meta";
-  m.innerHTML = `<span>${time || hhmm()}</span>` + (side === "out" ? `<span class="tk">${TICK1}</span>` : "");
+  m.innerHTML = side === "out" ? `<span class="tk">${TICK1}</span>` : "";
   if (side === "in" && t && !extra && mode !== "clinic") {
     const b = document.createElement("button"); b.type = "button"; b.className = "spk"; b.title = "Listen"; b.setAttribute("aria-label", "Listen"); b.textContent = "🔊";
     b.onclick = () => speakBubble(b, t); m.insertBefore(b, m.firstChild);
   }
-  d.appendChild(m);
+  if (m.children.length) d.appendChild(m); else d.classList.add("nometa");
   log.appendChild(d); lastSide = side; scroll();
   return d;
 }
@@ -328,7 +327,7 @@ const typingMs = (m) => Math.min(3600, 600 + ((m.text || "").length) * 11 + rnd(
 
 // The finished call, as the chat shows it: a static transcript. The live call is on the voice screen.
 function renderTranscript(m) {
-  const b = bubble("in", "", null, m.time, "call");
+  const b = bubble("in", "", null, "call");
   const box = document.createElement("div");
   box.innerHTML = '<div class="ch"><div class="ci">📞</div><div><b></b><small></small></div></div><div class="lbl">Call transcript</div>';
   box.querySelector("b").textContent = m.clinic;
@@ -350,7 +349,7 @@ async function renderScript(msgs) {
     const quiet = prev && prev.kind === "system";
     if (m.kind === "text" || m.kind === "card") {
       if (!quiet) { setStatus("typing…"); const d = typingDots(); await sleep(typingMs(m)); d.remove(); setStatus("online"); }
-      bubble("in", m.text, null, m.time, m.kind === "card" ? "card" : "");
+      bubble("in", m.text, null, m.kind === "card" ? "card" : "");
     } else if (m.kind === "transcript") {
       setStatus("typing…"); const d = typingDots(); await sleep(rnd(900, 1800)); d.remove(); setStatus("online");
       renderTranscript(m);
@@ -395,7 +394,7 @@ async function speakBubble(btn, text) {
 }
 
 function voiceBubble(url, seconds, transcript) {
-  const d = bubble("out", transcript, null, null, "voice");
+  const d = bubble("out", transcript, null, "voice");
   const bars = Array.from({ length: 26 }, (_, i) => `<span style="height:${25 + ((i * 41 + 11) % 75)}%;animation-delay:${(i % 8) * 0.08}s"></span>`).join("");
   const vn = document.createElement("div"); vn.className = "vn";
   vn.innerHTML = `<button type="button" aria-label="Play">▶</button><div class="vw">${bars}</div><span class="vd">${mmss(seconds)}</span>`;
