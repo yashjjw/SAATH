@@ -79,6 +79,21 @@
   body.clinic .msg.in { max-width: 96%; }
   body.clinic .msg.in .body { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; line-height: 1.4; }
   body.clinic .msg.in .body::after { width: 60px; }
+  .chips { align-self: flex-start; display: flex; flex-wrap: wrap; gap: 6px; max-width: 90%; margin: 4px 0 2px; }
+  .chip { background: var(--in); color: #027eb5; border: 0; border-radius: 18px; padding: 9px 16px; font: inherit; font-size: 14px; font-weight: 500; cursor: pointer; box-shadow: 0 1px .5px var(--shadow); }
+  .chip.list { border-radius: 8px; width: 100%; text-align: center; padding: 11px 16px; }
+  .msg.card .body b.wa:first-child { font-size: 15px; }
+  .msg.card { border-left: 3px solid #25d366; }
+  .msg details { margin: 2px 0 14px; }
+  .msg details summary { cursor: pointer; color: #027eb5; font-weight: 500; }
+  .msg details .tr { margin-top: 6px; font-size: 13px; white-space: pre-wrap; }
+  #sheet { position: fixed; inset: 0; background: #0008; z-index: 20; display: none; align-items: flex-end; justify-content: center; }
+  #sheet.on { display: flex; }
+  #sheet .panel { background: var(--in); color: var(--text); width: 100%; max-width: 640px; max-height: 80%; overflow-y: auto; border-radius: 16px 16px 0 0; padding: 14px 0 calc(14px + env(safe-area-inset-bottom, 0px)); }
+  #sheet h3 { margin: 0 16px 8px; font-size: 16px; font-weight: 600; }
+  #sheet .item { display: block; width: 100%; text-align: left; background: none; border: 0; border-top: 1px solid var(--shadow); padding: 12px 16px; color: inherit; font: inherit; cursor: pointer; }
+  #sheet .item b { display: block; font-weight: 600; }
+  #sheet .item span { color: var(--time); font-size: 13px; }
   #preview { position: fixed; inset: 0; background: #0b141a; z-index: 10; display: none; flex-direction: column; max-width: 640px; margin: 0 auto; }
   #preview.on { display: flex; }
   #preview .top { padding: calc(10px + env(safe-area-inset-top, 0px)) 12px 10px; }
@@ -94,8 +109,8 @@
 <header>
   <button class="iconbtn" type="button" aria-label="Back"><svg width="24" height="24" viewBox="0 0 24 24"><path d="M12 4l1.4 1.4L7.8 11H20v2H7.8l5.6 5.6L12 20l-8-8z"/></svg></button>
   <div class="avatar">S</div>
-  <div class="who"><b>SAATH</b><small id="status">online</small></div>
-  <button class="iconbtn" id="mode" type="button" aria-label="Switch mode" title="Switch Patient / Clinic" style="font-size:12px;font-weight:600;border:1px solid #ffffff66;border-radius:14px;padding:4px 10px">Patient</button>
+  <div class="who"><b>Saathi</b><small id="status">online</small></div>
+  <button class="iconbtn" id="mode" type="button" aria-label="Switch mode" title="Switch Patient / Clinic" style="font-size:12px;font-weight:600;border:1px solid #ffffff66;border-radius:14px;padding:4px 10px">Saathi</button>
   <button class="iconbtn" id="menu" type="button" aria-label="Set test password" title="Set test password"><svg width="24" height="24" viewBox="0 0 24 24"><path d="M12 7a2 2 0 100-4 2 2 0 000 4zm0 2a2 2 0 100 4 2 2 0 000-4zm0 6a2 2 0 100 4 2 2 0 000-4z"/></svg></button>
 </header>
 
@@ -111,6 +126,8 @@
   <button id="go" type="submit" aria-label="Send"></button>
 </form>
 <input id="file" type="file" accept="image/*" hidden>
+
+<div id="sheet"><div class="panel"><h3 id="sheettitle"></h3><div id="sheetitems"></div></div></div>
 
 <div id="preview">
   <div class="top"><button id="pclose" type="button" aria-label="Close"><svg width="26" height="26" viewBox="0 0 24 24"><path d="M19 6.400L17.600 5 12 10.600 6.400 5 5 6.400 10.600 12 5 17.600 6.400 19 12 13.400 17.600 19 19 17.600 13.400 12z"/></svg></button></div>
@@ -129,7 +146,8 @@ const TICK2 = '<svg viewBox="0 0 16 11"><path d="M11.100.7L4.900 7.200 2.400 4.6
 let pending = null;   // { base64, mime, url }
 let busy = false;
 let lastSide = null;  // for grouping bubbles + tails
-let mode = "patient"; // "patient" | "clinic"
+let mode = "saathi";  // "saathi" (scripted demo) | "patient" | "clinic"
+let demo = null;      // saathi mode: server-returned script state, resent each turn
 let history = [];     // clinic mode only: [{role, text}], kept in the browser, resent each turn
 
 const key = () => sessionStorage.getItem("saath_key") || "";
@@ -149,14 +167,14 @@ function system(t) {
   const d = document.createElement("div"); d.className = "sys"; d.textContent = t;
   log.appendChild(d); lastSide = null; scroll();
 }
-function bubble(side, t, imgUrl) {
+function bubble(side, t, imgUrl, time, extra) {
   const d = document.createElement("div");
   const first = lastSide !== side;
-  d.className = `msg ${side}${first ? " tail" : " follow"}${imgUrl && !t ? " imgonly" : ""}`;
+  d.className = `msg ${side}${first ? " tail" : " follow"}${imgUrl && !t ? " imgonly" : ""}${extra ? " " + extra : ""}`;
   if (imgUrl) { const p = document.createElement("div"); p.className = "photo"; const i = document.createElement("img"); i.src = imgUrl; p.appendChild(i); d.appendChild(p); }
   if (t) { const b = document.createElement("div"); b.className = "body"; b.innerHTML = fmt(t); d.appendChild(b); }
   const m = document.createElement("div"); m.className = "meta";
-  m.innerHTML = `<span>${hhmm()}</span>` + (side === "out" ? `<span class="tk">${TICK1}</span>` : "");
+  m.innerHTML = `<span>${time || hhmm()}</span>` + (side === "out" ? `<span class="tk">${TICK1}</span>` : "");
   d.appendChild(m);
   log.appendChild(d); lastSide = side; scroll();
   return d;
@@ -204,17 +222,28 @@ $("clip").onclick = () => pick(false);
 $("cam").onclick = () => pick(true);
 $("emoji").onclick = () => text.focus();
 $("menu").onclick = askKey;
+const MODES = ["saathi", "patient", "clinic"];
+const LABEL = { saathi: "Saathi", patient: "Patient", clinic: "Clinic" };
+const NAME = { saathi: "Saathi", patient: "SAATH", clinic: "SAATH Clinic" };
+const INITIAL = { saathi: "S", patient: "S", clinic: "C" };
+function initThread() {
+  log.innerHTML = ""; lastSide = null; history = []; demo = null;
+  document.body.classList.toggle("clinic", mode === "clinic");
+  $("mode").textContent = LABEL[mode];
+  document.querySelector(".who b").textContent = NAME[mode];
+  document.querySelector(".avatar").textContent = INITIAL[mode];
+  const dayText = mode === "saathi" ? "Sunday, 4 Oct" : new Date().toLocaleDateString([], { weekday: "long", day: "numeric", month: "short" });
+  const d = document.createElement("div"); d.className = "day"; d.textContent = dayText; log.appendChild(d);
+  system({
+    saathi: "Scripted demo: Ramesh Sharma, Indore. Type \"Hi\" to begin. All names, clinics, fees and timings are fictional mock data. No real call or booking happens.",
+    patient: "Patient mode: the prescription reader. Same agent as WhatsApp. Use made-up prescriptions only.",
+    clinic: "Clinician mode (Dr. R. Mehta, OPD). SYNTHETIC patient data only. Try: \"meera sharma, follow up\", \"hb trend\", \"could the dizziness be the telmisartan\". Text only.",
+  }[mode]);
+}
 $("mode").onclick = () => {
   if (busy) return;
-  mode = mode === "patient" ? "clinic" : "patient";
-  history = [];
-  document.body.classList.toggle("clinic", mode === "clinic");
-  $("mode").textContent = mode === "clinic" ? "Clinic" : "Patient";
-  document.querySelector(".who b").textContent = mode === "clinic" ? "SAATH Clinic" : "SAATH";
-  document.querySelector(".avatar").textContent = mode === "clinic" ? "C" : "S";
-  system(mode === "clinic"
-    ? "Clinician mode (Dr. R. Mehta, OPD). SYNTHETIC patient data only. Try: \"meera sharma, follow up\", \"hb trend\", \"could the dizziness be the telmisartan\". Text only."
-    : "Patient mode. Same agent as WhatsApp.");
+  mode = MODES[(MODES.indexOf(mode) + 1) % MODES.length];
+  initThread();
 };
 $("file").onchange = async (e) => {
   const f = e.target.files[0]; e.target.value = "";
@@ -237,20 +266,73 @@ $("form").onsubmit = (e) => {
   send(t, null);
 };
 
-async function send(t, img) {
-  if (busy || (!t && !img)) return;
+function clearChips() { document.querySelectorAll(".chips").forEach((c) => c.remove()); }
+
+function openSheet(list) {
+  $("sheettitle").textContent = list.title;
+  const box = $("sheetitems"); box.innerHTML = "";
+  list.items.forEach((it) => {
+    const b = document.createElement("button"); b.className = "item"; b.type = "button";
+    b.innerHTML = `<b>${esc(it.title)}</b><span>${esc(it.desc)}</span>`;
+    b.onclick = () => { $("sheet").classList.remove("on"); send(it.title, null, it.id); };
+    box.appendChild(b);
+  });
+  $("sheet").classList.add("on");
+}
+$("sheet").onclick = (e) => { if (e.target === $("sheet")) $("sheet").classList.remove("on"); };
+
+function chips(opts, listMsg) {
+  const row = document.createElement("div"); row.className = "chips";
+  if (listMsg) {
+    const b = document.createElement("button"); b.className = "chip list"; b.type = "button"; b.textContent = listMsg.button;
+    b.onclick = () => openSheet(listMsg); row.appendChild(b);
+  }
+  (opts || []).forEach((o) => {
+    const b = document.createElement("button"); b.className = "chip"; b.type = "button"; b.textContent = o.label;
+    b.onclick = () => send(o.label, null, o.id); row.appendChild(b);
+  });
+  log.appendChild(row); lastSide = null; scroll();
+}
+
+// Render the scripted demo's structured messages, staggered like a real chat.
+async function renderScript(msgs) {
+  for (let i = 0; i < msgs.length; i++) {
+    const m = msgs[i];
+    if (m.kind === "text" || m.kind === "card" || m.kind === "details") {
+      if (i > 0 && msgs[i - 1].kind !== "day" && msgs[i - 1].kind !== "system") {
+        setStatus("typing…"); const d = typingDots();
+        await sleep(Math.min(1300, 350 + ((m.text || "").length) * 5)); d.remove(); setStatus("online");
+      }
+      if (m.kind === "details") {
+        const b = bubble("in", "", null, m.time);
+        const det = document.createElement("details"); const sm = document.createElement("summary"); sm.textContent = m.summary;
+        const tr = document.createElement("div"); tr.className = "tr"; tr.textContent = m.text; det.append(sm, tr);
+        b.insertBefore(det, b.firstChild);
+      } else bubble("in", m.text, null, m.time, m.kind === "card" ? "card" : "");
+    } else if (m.kind === "system") system(m.text);
+    else if (m.kind === "day") { const d = document.createElement("div"); d.className = "day"; d.textContent = m.text; log.appendChild(d); lastSide = null; scroll(); }
+    else if (m.kind === "buttons") chips(m.options);
+    else if (m.kind === "list") chips([], m);
+  }
+}
+
+async function send(t, img, id) {
+  if (busy || (!t && !img && !id)) return;
   if (!key() && !askKey()) return;
   busy = true;
-  const mine = bubble("out", t, img && img.url);
-  await sleep(250); setTicks(mine, 2);
-  setStatus("typing…");
+  clearChips();
+  const scripted = mode === "saathi" && !img;
+  const silent = id === "skip";   // demo control: jump ahead without a user bubble
+  const mine = silent ? null : bubble("out", t, img && img.url);
+  if (mine) { await sleep(250); setTicks(mine, 2); }
+  if (!scripted || !silent) setStatus("typing…");
   const dots = typingDots();
   let data;
   try {
     const r = await fetch("/api/chat", {
       method: "POST",
       headers: { "content-type": "application/json", "x-test-key": key() },
-      body: JSON.stringify({ text: t, mode, history: mode === "clinic" ? history : [], image: img && { base64: img.base64, mime: img.mime } }),
+      body: JSON.stringify({ text: t, id, mode, state: demo, history: mode === "clinic" ? history : [], image: img && { base64: img.base64, mime: img.mime } }),
     });
     dots.remove(); setStatus("online");
     if (r.status === 401) { sessionStorage.removeItem("saath_key"); busy = false; return system("Wrong password. Tap ⋮ to enter it again."); }
@@ -260,7 +342,14 @@ async function send(t, img) {
     dots.remove(); setStatus("online"); busy = false;
     return system("Request failed: " + err.message);
   }
-  setTicks(mine, 3);
+  if (mine) setTicks(mine, 3);
+  if (data.messages) {
+    demo = data.state;
+    if (mine && data.userTime) mine.querySelector(".meta span").textContent = data.userTime;
+    await renderScript(data.messages);
+    busy = false;
+    return;
+  }
   const replies = data.replies || [];
   if (mode === "clinic" && replies.length && !data.debug) {
     history.push({ role: "user", text: t }, { role: "assistant", text: replies.join("\n\n") });
@@ -275,9 +364,7 @@ async function send(t, img) {
 }
 
 refreshButton();
-const today = new Date().toLocaleDateString([], { weekday: "long", day: "numeric", month: "short" });
-const day = document.createElement("div"); day.className = "day"; day.textContent = today; log.appendChild(day);
-system("Test harness for SAATH. Messages go to the same agent as WhatsApp. Use made-up prescriptions only.");
+initThread();
 </script>
 </body>
 </html>
