@@ -43,7 +43,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const inOrder = ["po_wait", "po_decide", "pay_approve", "link_wait", "pay_wait", "pay_retry", "dispatch_wait", "ship_wait"];
       if (state && inOrder.includes(state.step)) return res.json({ state, messages: [{ kind: "text", text: "Let's finish your current order first 🙏 I'll be ready for your reports right after." }] });
       if (!isPdf(document)) return res.json({ state, messages: [{ kind: "text", text: "I can read test reports as a PDF. Please send the report as a PDF file." }] });
-      return res.json(reportFromUpload());
+      return res.json(reportFromUpload(document));
     }
 
     // A prescription photo in Saath mode: the real reader, then the order workflow (lib/order.ts).

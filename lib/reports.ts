@@ -35,14 +35,14 @@ function sendOptions(sent: string[]): Msg | null {
   return { kind: "buttons", options: o };
 }
 
-// A PDF arrived (from the 📎 button).
-export function reportFromUpload(): DemoResult {
+// A PDF arrived (from the 📎 button). Its name and size are kept so the doctor can be sent the complete report.
+export function reportFromUpload(doc?: UploadedDoc): DemoResult {
   return {
-    state: { step: "rpt_sent", sent: [] },
+    state: { step: "rpt_sent", sent: [], doc: { name: doc?.name || "test-reports.pdf", size: doc?.size ?? 0 } },
     messages: [
       t("Got it, reading your test reports 🔍"),
       { kind: "card", text: REPORT_SUMMARY },
-      t(`Would you like me to send this summary to your doctor or to ${FAMILY}?`),
+      t(`Would you like me to send this to your doctor or to ${FAMILY}? ${DOCTOR} would get the summary *and* your complete report. ${FAMILY} would get the summary.`),
       sendOptions([])!,
     ],
   };
@@ -68,13 +68,21 @@ export function reportStep(state: DemoState, input: { id?: string; text?: string
   }
   if (doctor || family) {
     const now = [...sent];
-    const lines: string[] = [];
-    if (doctor && !now.includes("doctor")) { now.push("doctor"); lines.push(`Done ✅ I've sent this summary to *${DOCTOR}* at Heartcare Clinic.`); }
-    if (family && !now.includes("family")) { now.push("family"); lines.push(`Done ✅ I've sent this summary to *${FAMILY}*.`); }
-    if (!lines.length) return { state, messages: [t("I've already sent it there 👍")] };
-    lines.push("I shared the summary only, not your other records.");
+    const out: Msg[] = [];
+    const doc = state.doc ?? { name: "test-reports.pdf", size: 0 };
+    if (doctor && !now.includes("doctor")) {
+      now.push("doctor");
+      out.push(t(`Done ✅ I've sent *${DOCTOR}* at Heartcare Clinic the summary and your complete report.`));
+      out.push({ kind: "document", name: doc.name, size: doc.size, label: `Complete report sent to ${DOCTOR}` });
+    }
+    if (family && !now.includes("family")) {
+      now.push("family");
+      out.push(t(`Done ✅ I've sent *${FAMILY}* the summary. He didn't get the full report.`));
+    }
+    if (!out.length) return { state, messages: [t("I've already sent it there 👍")] };
+    out.push(t("I shared only that, not your other records."));
     const more = sendOptions(now);
-    return { state: { step: more ? "rpt_sent" : "end", sent: now }, messages: [t(lines.join("\n")), ...(more ? [more] : [t(`That's everyone. ${MENU_HINT}`)])] };
+    return { state: { step: more ? "rpt_sent" : "end", sent: now, doc: state.doc }, messages: [...out, ...(more ? [more] : [t(`That's everyone. ${MENU_HINT}`)])] };
   }
-  return { state, messages: [t("Would you like me to send this summary to your doctor or to Karan?"), sendOptions(sent) ?? t(MENU_HINT)] };
+  return { state, messages: [t("Would you like me to send this to your doctor (summary and complete report) or to Karan (summary)?"), sendOptions(sent) ?? t(MENU_HINT)] };
 }

@@ -17,12 +17,13 @@ export type Step =
   | "rpt_wait" | "rpt_sent"
   | "rx_wait" | "rx_offer" | "po_wait" | "po_decide" | "pay_approve" | "link_wait" | "pay_wait" | "pay_retry" | "dispatch_wait" | "ship_wait" | "delivered";
 
-export interface DemoState { step: Step; date?: string; rx?: RxData; order?: OrderData; sent?: string[] }
+export interface DemoState { step: Step; date?: string; rx?: RxData; order?: OrderData; sent?: string[]; doc?: { name: string; size: number } }
 export interface Opt { id: string; label: string }
 export type Msg =
   | { kind: "text"; text: string }
   | { kind: "card"; text: string }
   | { kind: "system"; text: string }
+  | { kind: "document"; name: string; size?: number; label?: string }
   | { kind: "transcript"; clinic: string; lines: { who: "Saath" | "Clinic"; t: number; text: string }[]; duration: string }
   | { kind: "buttons"; options: Opt[] }
   | { kind: "list"; button: string; title: string; items: { id: string; title: string; desc: string }[] };

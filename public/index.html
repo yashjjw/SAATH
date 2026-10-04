@@ -118,6 +118,7 @@
   .spk { background: none; border: 0; cursor: pointer; font-size: 12px; opacity: .55; padding: 0 3px; }
   .spk:hover { opacity: 1; }
   .msg a { color: #027eb5; word-break: break-all; }
+  .docrow.open { cursor: pointer; }
   .docrow { display: flex; align-items: center; gap: 10px; min-width: 220px; padding: 6px 4px 8px; }
   .docrow .di { width: 38px; height: 44px; border-radius: 6px; background: #e53935; color: #fff; font-size: 11px; font-weight: 700; display: grid; place-items: center; flex: none; }
   .docrow b { display: block; font-weight: 600; word-break: break-all; font-size: 13.5px; }
@@ -326,14 +327,17 @@ async function sendDocument(f) {
   if (f.size > 20 * 1024 * 1024) return system("That PDF is larger than 20 MB. Please send a smaller one.");
   let head = ""; try { head = await f.slice(0, 5).text(); } catch {}
   if (head !== "%PDF-") return system("That file doesn't look like a valid PDF. Please send the report as a PDF.");
+  docUrls[f.name] = URL.createObjectURL(f);
   return send("", null, undefined, undefined, undefined, { name: f.name, size: f.size, mime: "application/pdf" });
 }
-function docBubble(doc) {
-  const d = bubble("out", "", null, "doc");
-  const kb = doc.size >= 1048576 ? (doc.size / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(doc.size / 1024)) + " KB";
+const docUrls = {};   // uploaded PDFs by file name, so a sent copy can be opened
+function docBubble(doc, side = "out", label = "") {
+  const d = bubble(side, "", null, "doc");
+  const kb = !doc.size ? "" : doc.size >= 1048576 ? (doc.size / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(doc.size / 1024)) + " KB";
   const row = document.createElement("div"); row.className = "docrow";
   row.innerHTML = '<div class="di">PDF</div><div><b></b><small></small></div>';
-  row.querySelector("b").textContent = doc.name; row.querySelector("small").textContent = `PDF · ${kb}`;
+  row.querySelector("b").textContent = doc.name; row.querySelector("small").textContent = [label, "PDF", kb].filter(Boolean).join(" · ");
+  if (docUrls[doc.name]) { row.classList.add("open"); row.title = "Open the PDF"; row.onclick = () => window.open(docUrls[doc.name], "_blank", "noopener"); }
   d.insertBefore(row, d.firstChild);
   return d;
 }
@@ -411,6 +415,9 @@ async function renderScript(msgs) {
     } else if (m.kind === "transcript") {
       setStatus("typing…"); const d = typingDots(); await sleep(rnd(900, 1800)); d.remove(); setStatus("online");
       renderTranscript(m);
+    } else if (m.kind === "document") {
+      if (!quiet) { setStatus("typing…"); const d = typingDots(); await sleep(rnd(500, 1000)); d.remove(); setStatus("online"); }
+      docBubble({ name: m.name, size: m.size }, "in", m.label);
     } else if (m.kind === "system") system(m.text);
     else if (m.kind === "buttons") { await sleep(rnd(300, 800)); chips(m.options); }
     else if (m.kind === "list") { await sleep(rnd(300, 800)); chips([], m); }
