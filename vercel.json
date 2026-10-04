@@ -1,6 +1,7 @@
 {
   "functions": {
     "api/whatsapp.ts": { "maxDuration": 60 },
-    "api/chat.ts": { "maxDuration": 60, "includeFiles": "prompts/**" }
+    "api/chat.ts": { "maxDuration": 60, "includeFiles": "prompts/**" },
+    "api/voice.ts": { "maxDuration": 60 }
   }
 }

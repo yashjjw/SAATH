@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { timingSafeEqual } from "node:crypto";
+import { passwordOk } from "../lib/auth.js";
 import { chatReply, extractPrescription, formatExtraction } from "../lib/agent.js";
 import { clinicReply } from "../lib/clinic.js";
 import { saathiReply, type DemoState } from "../lib/saathi.js";
@@ -8,14 +8,6 @@ import type { ChatTurn } from "../lib/model.js";
 // Test-only twin of api/whatsapp.ts: same agent functions, no Twilio. Disabled unless
 // CHAT_TEST_PASSWORD is set, because it spends Anthropic credits on a public URL.
 const IMG_MIME = /^image\/(jpeg|png|webp|gif)$/;
-
-function passwordOk(given: string | undefined): boolean {
-  const want = process.env.CHAT_TEST_PASSWORD;
-  if (!want || !given) return false;
-  const a = Buffer.from(given);
-  const b = Buffer.from(want);
-  return a.length === b.length && timingSafeEqual(a, b);
-}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
