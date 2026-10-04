@@ -145,7 +145,7 @@ At step 3's doctor buttons tap **Someone else**:
 
 ### Doctor visit: the doctor's side of the same chat (Saath mode)
 
-At the clinic, Ramesh picks **🩺 Doctor visit** from the menu (or types "doctor visit"). Saath asks before sharing anything, then gives Dr. Kulkarni a history summary and she asks questions in the same thread, by typing, by voice note, or with the suggested-question buttons. Everything is read from Ramesh's record, which is **fictional mock data** in `lib/fixtures/ramesh.ts` (edit it freely).
+At the clinic, Ramesh picks **🩺 Doctor visit** from the menu (or types "doctor visit"). It works on its own, at any time: from a fresh "Hi", or after a booking, an order or a delivery, with no booking or prescription upload needed first. (The menu works from any resting point, so it also works after you've finished another flow.) Saath asks before sharing anything, then gives Dr. Kulkarni a history summary and she asks questions in the same thread, by typing, by voice note, or with the suggested-question buttons. Everything is read from Ramesh's record, which is **fictional mock data** in `lib/fixtures/ramesh.ts` (edit it freely).
 
 | Step | You do | Saath does |
 | --- | --- | --- |
@@ -167,7 +167,7 @@ Questions it understands (any wording, or the buttons): medicines, allergies, la
 | `should I increase the amlodipine` | "That's yours to decide." plus the same adjacent facts |
 | Anything else | "I don't have that in the record." and what it can answer |
 
-The prescription medicines and tests come from `lib/fixtures/prescription.ts` (the 9 tests there are placeholders). Voice notes work here too, so the doctor can ask aloud.
+The record refers to "the latest prescription on file" (medicines and tests from `lib/fixtures/prescription.ts`; the 9 tests there are placeholders), so it never claims a booking or an upload happened. Voice notes work here too, so the doctor can ask aloud.
 
 ---
 

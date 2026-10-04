@@ -131,6 +131,11 @@ export function saathReply(state: DemoState | null | undefined, input: DemoInput
   // Something arrived from the outside world (pharmacy, Pine Labs, Delhivery): apply it, never chat.
   if (input.event) return orderEvent(state ?? null, input.event, clock, now);
   if (input.id === "restart" || GREETING.test(text) || !state) return greet();
+  // The menu works from any resting point (e.g. "Doctor visit" right after a booking or a delivery),
+  // not only straight after "Hi". Its buttons are only on screen at such points.
+  if (state.step !== "menu" && (/^menu_\d$/.test(input.id ?? "") || (["done", "end", "delivered"].includes(state.step) && /doctor visit|book (an )?appointment|upload (a )?prescription/i.test(text)))) {
+    return saathReply({ step: "menu" }, input);
+  }
   // Steps of the prescription -> order -> delivery workflow have their own handling.
   if (state.rx || state.step.startsWith("rx_") || ["po_wait", "po_decide", "pay_approve", "link_wait", "pay_wait", "pay_retry", "dispatch_wait", "ship_wait", "delivered"].includes(state.step)) {
     const r = orderText(state, input, clock, now);
