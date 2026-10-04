@@ -7,6 +7,7 @@ import { makeClock, type Clock } from "./clock.js";
 import { callLines, CALL_META } from "./callscript.js";
 import { doctorAnswer, doctorSummaryCard, DOCTOR_VIEW_BANNER, ecgReportCard } from "./doctor.js";
 import { reportStep, reportWait } from "./reports.js";
+import { insuranceStep, INS_WAIT_PROMPT } from "./insurance.js";
 import { orderText, orderEvent, type RxData, type OrderData, type DeskUpdate, type OrderEvent } from "./order.js";
 
 export type Step =
@@ -15,9 +16,10 @@ export type Step =
   // prescription -> order -> payment -> delivery (lib/order.ts)
   | "doctor_consent" | "doctor_ready" | "doctor_chart"
   | "rpt_wait" | "rpt_sent"
+  | "ins_wait" | "ins_ready" | "ins_proc" | "ins_answer" | "ins_example" | "ins_hosp" | "ins_pack"
   | "rx_wait" | "rx_offer" | "po_wait" | "po_decide" | "pay_approve" | "link_wait" | "pay_wait" | "pay_retry" | "dispatch_wait" | "ship_wait" | "delivered";
 
-export interface DemoState { step: Step; date?: string; rx?: RxData; order?: OrderData; sent?: string[]; doc?: { name: string; size: number } }
+export interface DemoState { step: Step; date?: string; rx?: RxData; order?: OrderData; sent?: string[]; doc?: { name: string; size: number }; proc?: string; seen?: string[] }
 export interface Opt { id: string; label: string }
 export type Msg =
   | { kind: "text"; text: string }
@@ -50,6 +52,7 @@ const MENU: Msg = {
     { id: "menu_4", title: "📦 Where is my order?", desc: "Delivery status of your medicines" },
     { id: "menu_5", title: "⏰ Medicine reminders", desc: "Reminders at the right time" },
     { id: "menu_6", title: "📊 My health report", desc: "Your week at a glance, and sharing with family" },
+    { id: "menu_ins", title: "🛡 Insurance help", desc: "Check what your policy covers, and get help with claims" },
   ],
 };
 const DOCTORS: Msg = {
@@ -106,7 +109,7 @@ function reprompt(s: DemoState, lead: string): DemoResult {
     followup: [FOLLOW],
     done: [MENU],
     end: [MENU],
-    doctor_consent: [DOC_CONSENT], doctor_ready: [DOC_OPEN], doctor_chart: [DOC_ASK], rpt_wait: [], rpt_sent: [],
+    doctor_consent: [DOC_CONSENT], doctor_ready: [DOC_OPEN], doctor_chart: [DOC_ASK], rpt_wait: [], rpt_sent: [], ins_wait: [], ins_ready: [], ins_proc: [], ins_answer: [], ins_example: [], ins_hosp: [], ins_pack: [],
     rx_wait: [], rx_offer: [], po_wait: [], po_decide: [], pay_approve: [], link_wait: [], pay_wait: [], pay_retry: [], dispatch_wait: [], ship_wait: [], delivered: [],
   };
   return { state: s, messages: [t(lead), ...by[s.step]] };
@@ -139,8 +142,13 @@ export function saathReply(state: DemoState | null | undefined, input: DemoInput
   if (input.id === "restart" || GREETING.test(text) || !state) return greet();
   // The menu works from any resting point (e.g. "Doctor visit" right after a booking or a delivery),
   // not only straight after "Hi". Its buttons are only on screen at such points.
-  if (state.step !== "menu" && (/^menu_(\d|reports)$/.test(input.id ?? "") || (["done", "end", "delivered"].includes(state.step) && /doctor visit|book (an )?appointment|upload (a )?prescription|upload (my )?(test )?reports?/i.test(text)))) {
+  if (state.step !== "menu" && (/^menu_(\d|reports|ins)$/.test(input.id ?? "") || (["done", "end", "delivered"].includes(state.step) && /doctor visit|book (an )?appointment|upload (a )?prescription|upload (my )?(test )?reports?|insurance help/i.test(text)))) {
     return saathReply({ step: "menu" }, input);
+  }
+  // Insurance help steps.
+  if (state.step.startsWith("ins_")) {
+    const r = insuranceStep(state, input);
+    if (r) return r;
   }
   // Test-report steps (summary on screen, choose who to send it to).
   if (state.step === "rpt_wait" || state.step === "rpt_sent") {
@@ -172,6 +180,9 @@ export function saathReply(state: DemoState | null | undefined, input: DemoInput
           state: { step: "doctor_consent" },
           messages: [t("Ramesh, it looks like you've reached the clinic 📍\n\nBefore you meet the doctor, I can prepare a *one-page summary of your health history* so you don't have to remember everything during the consultation.\n\nWould you like me to prepare it?"), DOC_CONSENT],
         };
+      }
+      if (has(input, "menu_ins", /^\s*8\b|insurance|mediclaim|my policy|health policy/i)) {
+        return { state: { step: "ins_wait" }, messages: [t(INS_WAIT_PROMPT)] };
       }
       if (has(input, "menu_reports", /^\s*4\b|test reports?|lab reports?|upload (my )?reports?/i)) {
         return { state: { step: "rpt_wait" }, messages: [t("Send me your test reports as a PDF using 📎 and I'll explain them in simple words 🧪")] };

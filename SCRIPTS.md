@@ -186,6 +186,27 @@ Sending is simulated (no real message goes to the clinic or to Karan). Typing wo
 
 ---
 
+### Insurance help (Feature 7): policy, "is it covered?", hospitals, claim checklist (Saath mode)
+
+Menu → **🛡 Insurance help** (the last menu item). Fixed, deterministic answers from the Feature 7 mock and the dummy policy (**Suraksha Senior Secure**, a fictional insurer). The uploaded PDF is checked to be a PDF but **not read**: the summary is fixed. A PDF sent right after choosing Insurance help is the policy; a PDF at any other point is still a test report. Photos of the policy pages also work (any photo at that step).
+
+| Step | You do | Saath does |
+| --- | --- | --- |
+| 1 | Menu → **🛡 Insurance help** | "Please send me your health insurance policy (a PDF or photos of the pages). I'll read it and keep it with your records. 📎" |
+| 2 | 📎, pick the policy PDF | "Got it ✅ Here is a short summary of your policy:" and the **🛡 Your policy** card (policy no., ₹6,50,000 cover with bonus, running since 1 Dec 2022, room ₹5,000/day, ICU ₹10,000/day, 10% co-pay, waiting periods completed). Then **[Is my heart surgery covered?]** |
+| 3 | Ask: `My doctor has recommended a sternotomy, heart surgery. Can you check my insurance document and tell me if it is covered or not, based on my medical history?` (or tap the button) | "I'll check. First, which operation did the doctor name?" **[Bypass surgery (CABG)] [Valve repair or replacement] [Not sure]** |
+| 4 | Tap **Bypass surgery (CABG)** | "I'll check your policy against your records: your blood pressure history, your diabetes, your cholesterol and your liver tests." Then **"Short answer: your policy should cover bypass surgery, but you would still pay part of the bill."** and three cards: ✅ *Why it should be covered* (5 reasons), ⚠️ *What will reduce what the insurer pays* (room limit, 10% co-pay, non-payable items), ❓ *What could cause questions from the insurer* (2022 declarations, paperwork, new liver results). Then "Would you like to see how much you might pay yourself?" **[Yes, show me] [Hospitals first]**. *Valve* gives the same answer for valve surgery; *Not sure* explains what the policy lists and asks again |
+| 5 | **Yes, show me** | The **🧾 Example**: costlier room ₹1,57,000 vs room within the limit ₹49,000, "could save about ₹1,08,000", then "Both cases are well inside your ₹6,50,000 cover." **[Hospitals in Indore]** |
+| 6 | Tap it, or ask `Which hospitals in Indore do this surgery? I want something within my budget.` | Estimate ₹2.5 to 3.8 lakh, the **🏥 hospitals** card (CARE CHL, Apollo, Medanta, Nakshatra), and "Shall I ask these hospitals for a package quote…?" **[Yes, ask them] [I'll ask myself]** |
+| 7 | Either | "I'll message the insurance desk at each hospital, tell them I'm an AI assistant… I will not share your reports without your permission." then the **📋 Claim checklist** and **[Prepare my document pack] [Later]** |
+| 8 | **Prepare my document pack** | A list of what is on file (policy, blood tests and ECG) and what is missing (doctor's written recommendation, angiography, older records) |
+
+**Questions it answers** (typed or by voice, at any step after the policy is uploaded): bypass covered, diabetes and BP, waiting periods left, stents (₹60,000 cap), minimally invasive or robotic surgery ("your policy doesn't say"), liver results, can the insurer reject because of the 2022 answers, room rent limit, higher room (62.5%), which room, co-payment, how much I'd pay, bonus cover, pre and post-hospital costs, how early pre-authorisation must be (3 days; emergency 24 hours), if cashless is refused (reimbursement within 15 days), documents needed, second opinion ("your policy doesn't say"). Hand-backs: `Do I really need this surgery?` → "Ask your doctor. I don't judge medical need."; `Which hospital is best?` → "I can show facts and your likely cost, but I can't rank quality."; `Will my claim be approved?` → "Nobody can promise that… The insurer decides."
+
+**Two things to know.** The hospital facts and the ₹2.5 to 3.8 lakh estimate are as written in your mock; I have not checked them against the hospitals' sites. The policy's Annexure 2 flags **all four** hospitals (including Nakshatra) as cashless for cardiac surgery (illustrative), so the card says that, with a note to confirm that Nakshatra does bypass surgery. Your mock said only the first three.
+
+---
+
 ## 3. Patient mode: prescription reader
 
 Header button: **Patient**. Use a **made-up** prescription photo only.
@@ -309,6 +330,7 @@ For step 6, include `Tracking ID: 3714910042305` (also `AWB …`, `Waybill …`,
 | Chat UI (transcript card, buttons, list) | `public/index.html` |
 | Clinician prompt and record | `prompts/clinic.md`, `lib/fixtures/clinic.ts` |
 | Scripted prescription (edit the tests here) | `lib/fixtures/prescription.ts` |
+| Insurance help (policy, cover check, hospitals, checklist, Q&A) | `lib/insurance.ts` (all text and logic), `lib/saath.ts` (menu item), `api/chat.ts` (policy PDF) |
 | Doctor visit (Doctor Summary, Doctor Mode) | `lib/doctor.ts` (logic), `lib/fixtures/ramesh.ts` (the record), `lib/saath.ts` (menu option 2) |
 | Test reports → summary → send to doctor / family | `lib/reports.ts` (summary text and sending), `api/chat.ts` (PDF), `public/index.html` (PDF bubble) |
 | Prescription → order workflow | `lib/order.ts` (logic), `api/chat.ts` (photo + events), Backend input panel in `public/index.html` |
