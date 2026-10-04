@@ -88,6 +88,13 @@
   #mic .lvl i { display: block; height: 100%; width: 0; background: #fff; transition: width .08s; }
   #typed { flex: 1; border: 1px solid var(--line); border-radius: 20px; padding: 9px 14px; background: var(--card); color: var(--text); font: inherit; min-width: 0; }
   #send { border: 0; border-radius: 50%; width: 38px; height: 38px; background: var(--accent); color: #fff; flex: none; }
+  .prompt { display: none; background: var(--warn-bg); color: var(--text); border-radius: 12px; padding: 10px 14px; border-left: 4px solid #f0b429; }
+  .prompt.on { display: block; }
+  .prompt small { display: block; color: var(--muted); font-size: 11.5px; letter-spacing: .04em; text-transform: uppercase; margin-bottom: 2px; }
+  .prompt b { font-size: 16px; font-weight: 600; }
+  .script { align-self: center; width: 92%; background: var(--card); border-radius: 12px; padding: 10px 14px; box-shadow: 0 1px 2px var(--shadow); font-size: 13px; }
+  .script h4 { margin: 0 0 6px; font-size: 13px; }
+  .script ol { margin: 0; padding-left: 20px; } .script li { margin: 3px 0; color: var(--muted); } .script li.cur { color: var(--text); font-weight: 600; } .script li.done { text-decoration: line-through; opacity: .6; }
   .hint { font-size: 12px; color: var(--muted); text-align: center; min-height: 16px; }
 </style>
 </head>
@@ -111,6 +118,7 @@
 </div></div>
 <div id="log" aria-live="polite"></div>
 <div class="dock">
+  <div class="prompt" id="prompt"><small>Your line: read this aloud</small><b id="pline"></b></div>
   <div class="hint" id="hint"></div>
   <div class="row">
     <button id="go" type="button">▶ Start call</button>
@@ -164,8 +172,8 @@ const hint = (t) => { $("hint").textContent = t || ""; };
 // ---- call state ----------------------------------------------------------------------------
 let run = 0;             // bumped to cancel the call
 let engine = "gnani";    // "gnani" | "browser" (fallback: browser voice for Saathi, typed input only)
-let turns = [];          // [{who, text}] the transcript the agent sees
-let audioEl = null, timer = null, t0 = 0, busy = false, opening = "";
+let lines = [], idx = 0, cache = {};   // the script, the current position, prefetched Saathi audio
+let audioEl = null, timer = null, t0 = 0;
 
 function setSpeaking(who) {
   $("pS").classList.toggle("speaking", who === "Saathi");
@@ -215,19 +223,39 @@ function typingDots() { const d = document.createElement("div"); d.className = "
 function setTurnUi(enabled) {
   const micOk = enabled && engine === "gnani" && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
   $("mic").disabled = !micOk; $("typed").disabled = !enabled; $("send").disabled = !enabled;
-  if (enabled) { hint(micOk ? "Your turn: tap the mic and speak as the clinic receptionist." : "Your turn: type what the clinic says."); $("typed").focus(); }
-  else hint("");
+  const line = lines[idx];
+  $("prompt").classList.toggle("on", enabled && !!line);
+  if (enabled && line) {
+    $("pline").textContent = line.text;
+    hint(micOk ? "Tap the mic and read your line. It doesn't have to be word-perfect." : "No microphone path here: press Enter to send the line, or edit it first.");
+    if (!micOk) $("typed").value = line.text;
+    $("typed").focus();
+  } else hint("");
 }
+const norm = (t) => t.toLowerCase().replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter(Boolean);
+function matchPct(expected, heard) {          // share of the script's words that appear in order in what STT heard
+  const a = norm(expected), b = norm(heard); if (!a.length) return 0;
+  const m = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
+  for (let i = 0; i < a.length; i++) for (let j = 0; j < b.length; j++) m[i + 1][j + 1] = a[i] === b[j] ? m[i][j] + 1 : Math.max(m[i][j + 1], m[i + 1][j]);
+  return Math.round(100 * m[a.length][b.length] / a.length);
+}
+function renderScriptCard() {
+  const mine = lines.map((l, i) => ({ l, i })).filter((x) => x.l.who === "Clinic");
+  const d = document.createElement("div"); d.className = "script";
+  d.innerHTML = `<h4>Your script (${mine.length} lines): read each when prompted</h4><ol>${mine.map((x) => `<li id="sl${x.i}">${esc(x.l.text)}</li>`).join("")}</ol>`;
+  log.appendChild(d);
+}
+function markScript(i, cls) { const el = $("sl" + i); if (el) { el.className = cls; } }
 
 // ---- Saathi speaks -------------------------------------------------------------------------
-async function saathiSay(text, me, meta = {}) {
+async function saathiSay(text, me, meta = {}, pre = null) {
   const alive = () => me === run;
   const d = bubble("Saathi", "Saathi · AI assistant");
   d.querySelector(".tx").textContent = "🎧 speaking…";
   setSpeaking("Saathi"); $("status").textContent = "Saathi speaking";
   let data;
   try {
-    data = engine === "gnani" ? await api({ action: "speak", text, voice: $("vS").value, language: "en-IN", transcribe: false }) : { browser: true };
+    data = engine === "gnani" ? await (pre || api({ action: "speak", text, voice: $("vS").value, language: "en-IN", transcribe: false })) : { browser: true };
   } catch (e) {
     if (e.status === 401) { d.remove(); return endCall(me, "Wrong password."); }
     banner(`${e.message}. Saathi continues in your browser's voice; speech-to-text is unavailable, so type what the clinic says.`);
@@ -266,30 +294,34 @@ function addClinicBubble(text, audioUrl, chips) {
   scroll();
 }
 
-// One turn: the clinic said `text`; get Saathi's reply (model), then speak it (Gnani TTS).
-async function afterClinic(me, text) {
-  turns.push({ who: "Clinic", text });
-  await agentReply(me);
+// ---- scripted flow ----------------------------------------------------------------------------
+function prefetch(i) {                       // synthesize a Saathi line ahead of time so it plays without a gap
+  if (engine !== "gnani" || !lines[i] || lines[i].who !== "Saathi") return null;
+  return (cache[i] ??= api({ action: "speak", text: lines[i].text, voice: $("vS").value, language: "en-IN", transcribe: false }));
 }
-async function agentReply(me) {
+// Plays Saathi's lines until it is the clinic's (your) turn, or the script is over.
+async function advance(me) {
   const alive = () => me === run;
-  busy = true; setTurnUi(false); $("status").textContent = "Saathi is thinking…";
-  const dots = typingDots();
-  let r;
-  try { r = await api({ action: "agent", turns }); }
-  catch (e) {
-    dots.remove(); busy = false; if (!alive()) return;
-    if (e.status === 401) return endCall(me, "Wrong password.");
-    sys("Saathi couldn't reply: " + e.message, () => { if (alive()) agentReply(me); });
-    $("status").textContent = "Connected"; return;
+  while (alive() && idx < lines.length) {
+    const line = lines[idx];
+    if (line.who === "Clinic") {
+      prefetch(idx + 1);
+      markScript(idx, "cur"); $("status").textContent = "Your turn"; setTurnUi(true); return;
+    }
+    await sleep(rnd(350, 1100)); if (!alive()) return;       // a natural beat before Saathi speaks
+    const pre = prefetch(idx); if (pre) pre.catch(() => {});
+    idx++;
+    await saathiSay(line.text, me, {}, pre); if (!alive()) return;
   }
-  dots.remove(); if (!alive()) return;
-  await sleep(rnd(150, 500));
-  turns.push({ who: "Saathi", text: r.say });
-  await saathiSay(r.say, me, { llm: r.ms && r.ms.llm });
-  if (!alive()) return;
-  if (r.end) return finishCall(me);
-  busy = false; $("status").textContent = "Your turn"; setTurnUi(true);
+  if (alive()) finishCall(me);
+}
+function submitClinic(me, text, url, chips) {
+  const line = lines[idx];
+  if (!line || line.who !== "Clinic" || me !== run) return;
+  chips.push(`matches script ${matchPct(line.text, text)}%`);
+  addClinicBubble(text, url, chips);
+  markScript(idx, "done"); setTurnUi(false); idx++;
+  advance(me);
 }
 
 // ---- microphone ------------------------------------------------------------------------------
@@ -345,8 +377,7 @@ async function onRecStop() {
     const r = await api({ action: "stt", audio: bytesToB64(wav.bytes), mime: "audio/wav", language: "en-IN" });
     if (me !== run) return;
     if (!r.transcript) { hint("I couldn't hear any words. Tap the mic and try again."); $("status").textContent = "Your turn"; setTurnUi(true); return; }
-    addClinicBubble(r.transcript, URL.createObjectURL(blob), [`STT ${r.ms.stt} ms`, "Gnani Prisma"]);
-    hint(""); await afterClinic(me, r.transcript);
+    hint(""); submitClinic(me, r.transcript, URL.createObjectURL(blob), [`STT ${r.ms.stt} ms`, "Gnani Prisma"]);
   } catch (e) {
     if (me !== run) return;
     if (e.status === 401) return endCall(me, "Wrong password.");
@@ -357,9 +388,8 @@ $("mic").onclick = () => { if (rec && rec.state === "recording") stopRec(); else
 
 function sendTyped() {
   const t = $("typed").value.trim(); if (!t || $("typed").disabled) return;
-  $("typed").value = ""; const me = run;
-  addClinicBubble(t, null, ["typed, no STT"]);
-  afterClinic(me, t);
+  $("typed").value = "";
+  submitClinic(run, t, null, ["typed, no STT"]);
 }
 $("send").onclick = sendTyped;
 $("typed").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); sendTyped(); } });
@@ -368,7 +398,7 @@ $("typed").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preve
 async function startCall() {
   const me = ++run; const alive = () => me === run;
   $("go").textContent = "⏹ End call"; $("go").classList.add("end");
-  log.innerHTML = ""; banner(""); stopAudio(); setSpeaking(null); setTurnUi(false); turns = []; busy = true;
+  log.innerHTML = ""; banner(""); stopAudio(); setSpeaking(null); setTurnUi(false); lines = []; idx = 0; cache = {};
   $("mid").classList.add("ring"); $("time").textContent = "0:00"; $("status").textContent = "Calling…";
   if (!key() && !askKey()) return endCall(me, "No password set.");
   let call;
@@ -378,36 +408,29 @@ async function startCall() {
     if (e.status === 404) return endCall(me, "Voice tester is off: set CHAT_TEST_PASSWORD and redeploy.");
     return endCall(me, "Could not start: " + e.message);
   }
-  opening = call.opening;
+  lines = call.lines;
   engine = call.gnani ? "gnani" : "browser";
   $("engine").textContent = engine === "gnani" ? "Gnani Timbre (TTS) + Prisma (STT)" : "Browser voice (fallback)";
   if (engine === "browser") banner("GNANI_API_KEY isn't set on the server: Saathi speaks in your browser's voice and there is no speech-to-text, so type what the clinic says. Add the key to use Gnani.");
-  sys(call.title);
+  sys(call.title); renderScriptCard();
+  prefetch(0);                                            // synthesize Saathi's opening while the phone "rings"
   await sleep(rnd(2200, 3600)); if (!alive()) return;     // ringing
   $("mid").classList.remove("ring"); $("status").textContent = "Connected";
   t0 = Date.now(); clearInterval(timer);
   timer = setInterval(() => { $("time").textContent = mmss((Date.now() - t0) / 1000); }, 500);
-  sys("Connected. You are the clinic receptionist: answer Saathi.");
-  turns.push({ who: "Saathi", text: opening });
-  await saathiSay(opening, me);
-  if (!alive()) return;
-  busy = false; $("status").textContent = "Your turn"; setTurnUi(true);
+  sys("Connected. You are the clinic receptionist: answer Saathi with the lines in your script.");
+  await advance(me);
 }
 
-async function finishCall(me) {
-  clearInterval(timer); setTurnUi(false); busy = true;
+function finishCall(me) {
+  clearInterval(timer); setTurnUi(false);
   $("status").textContent = "Call ended";
   sys("Call ended · " + mmss((Date.now() - t0) / 1000));
   setBtnAgain();
-  // facts-only summary of what the clinic actually said (nothing inferred)
-  try {
-    const { summary: s } = await api({ action: "summary", turns });
-    if (me !== run) return;
-    const d = document.createElement("div"); d.className = "summary" + (s.booked ? "" : " no");
-    const row = (k, v) => v ? `<div><b>${k}</b>${esc(v)}</div>` : "";
-    d.innerHTML = `<h4>${s.booked ? "✅ Appointment booked" : "⚠️ Not booked"}</h4>${row("Doctor", s.doctor)}${row("Date", s.date)}${row("Time", s.time)}${row("Fee", s.fee)}${row("Bring", s.bring)}${row("Note", s.note)}<small>Extracted from what was said on this call. Anything not stated is left out.</small>`;
-    log.appendChild(d); scroll();
-  } catch (e) { sys("Couldn't summarize the call: " + e.message); }
+  // The outcome of the scripted call (fixed by the script, not extracted from your speech).
+  const d = document.createElement("div"); d.className = "summary";
+  d.innerHTML = `<h4>✅ Appointment confirmed</h4><div><b>Doctor</b>Dr. Meera Kulkarni</div><div><b>Date</b>6 Oct</div><div><b>Time</b>11:30 am</div><div><b>Fee</b>₹800</div><div><b>Bring</b>old reports</div><small>Scripted demo outcome. It is fixed by the script, not extracted from what you said.</small>`;
+  log.appendChild(d); scroll();
 }
 function setBtnAgain() { $("go").textContent = "↺ Call again"; $("go").classList.remove("end"); setSpeaking(null); }
 function endCall(me, msg) { if (me !== run) return; clearInterval(timer); $("status").textContent = "Ready"; $("mid").classList.remove("ring"); setTurnUi(false); if (msg) sys(msg); setBtnAgain(); }
@@ -418,7 +441,7 @@ $("go").onclick = () => {
     $("status").textContent = "Ended"; sys("Call ended by you."); setBtnAgain();
   } else startCall();
 };
-sys("Press Start call. Saathi (an AI) phones the clinic and you answer as the receptionist: speak into the mic, Gnani transcribes you, and Saathi replies in a Gnani voice.");
+sys("Press Start call. Saathi (an AI) phones the clinic and you answer as the receptionist, reading the lines shown on screen. Gnani transcribes you; Saathi's lines are scripted and spoken in a Gnani voice.");
 </script>
 </body>
 </html>

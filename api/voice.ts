@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { passwordOk } from "../lib/auth.js";
-import { OPENING, agentTurn, summarize, type Turn } from "../lib/callagent.js";
+import { CALL } from "../lib/callscript.js";
 
 // Gnani (Vachana) speech proxy for the voice-call simulation. The API key stays server-side.
 //   TTS  POST {BASE}/api/v1/tts/inference   JSON in, binary audio out   (Timbre v2.5)
@@ -9,20 +9,6 @@ import { OPENING, agentTurn, summarize, type Turn } from "../lib/callagent.js";
 const BASE = "https://api.vachana.ai";
 const TTS_LANGS = new Set(["en-IN", "hi-IN", "hi-en", "ta-IN", "te-IN", "kn-IN", "ml-IN", "mr-IN", "pa-IN", "bn-IN", "gu-IN"]);
 const STT_LANGS = new Set(["en-IN", "hi-IN", "ta-IN", "te-IN", "kn-IN", "ml-IN", "mr-IN", "pa-IN", "bn-IN", "gu-IN"]);
-
-const CALL = {
-  title: "Live call: you play Heartcare Clinic reception, Saathi (AI) phones to book",
-  clinic: "Heartcare Clinic, Vijay Nagar",
-  opening: OPENING,
-};
-
-function cleanTurns(raw: unknown): Turn[] {
-  if (!Array.isArray(raw)) return [];
-  return raw
-    .filter((t) => t && (t.who === "Saathi" || t.who === "Clinic") && typeof t.text === "string" && t.text.trim())
-    .slice(-30)
-    .map((t) => ({ who: t.who, text: String(t.text).trim().slice(0, 600) }));
-}
 
 class GnaniError extends Error {
   constructor(public status: number, msg: string) { super(msg); }
@@ -98,22 +84,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const key = process.env.GNANI_API_KEY;
 
   if (body.action === "script") return res.json({ ...CALL, gnani: !!key });
-
-  // Model-driven (no Gnani key needed): what Saathi says next, and a facts-only summary.
-  if (body.action === "agent" || body.action === "summary") {
-    const turns = cleanTurns(body.turns);
-    if (body.action === "agent" && turns[turns.length - 1]?.who !== "Clinic") {
-      return res.status(400).json({ error: "The last turn must be from the clinic" });
-    }
-    try {
-      const t0 = Date.now();
-      if (body.action === "agent") return res.json({ ...(await agentTurn(turns)), ms: { llm: Date.now() - t0 } });
-      return res.json({ summary: await summarize(turns) });
-    } catch (e) {
-      console.error("agent failed", e instanceof Error ? e.message : e);
-      return res.status(502).json({ error: e instanceof Error ? e.message : "agent failed" });
-    }
-  }
 
   if (!key) return res.status(503).json({ error: "GNANI_API_KEY is not set" });
 
