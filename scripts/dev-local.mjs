@@ -6,6 +6,9 @@ import { readFile } from "node:fs/promises";
 import { join, extname } from "node:path";
 import { pathToFileURL } from "node:url";
 
+// Load .env.local (real environment variables win over the file).
+try { process.loadEnvFile(".env.local"); } catch { console.warn("No .env.local found; copy .env.example to .env.local"); }
+
 const PORT = Number(process.env.PORT ?? 3000);
 const OUT = ".devbuild";
 execSync(`npx tsc --noEmit false --outDir ${OUT} --declaration false`, { stdio: "inherit" });
