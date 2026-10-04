@@ -5,7 +5,7 @@
 
 export type Step =
   | "menu" | "reason" | "doctor" | "other_query" | "other_pick" | "when" | "date" | "daypart"
-  | "scheduled" | "followup" | "done" | "end";
+  | "followup" | "done" | "end";
 
 export interface DemoState { step: Step; date?: string }
 export interface Opt { id: string; label: string }
@@ -14,7 +14,7 @@ export type Msg =
   | { kind: "card"; text: string; time?: string }
   | { kind: "system"; text: string }
   | { kind: "day"; text: string }
-  | { kind: "details"; summary: string; text: string; time?: string }
+  | { kind: "call"; clinic: string; lines: { who: "Saathi" | "Clinic"; t: number; text: string }[]; duration: string; time?: string }
   | { kind: "buttons"; options: Opt[] }
   | { kind: "list"; button: string; title: string; items: { id: string; title: string; desc: string }[] };
 
@@ -50,7 +50,6 @@ const PARTS: Msg = {
   kind: "buttons",
   options: [{ id: "part_morning", label: "Morning" }, { id: "part_evening", label: "Evening" }, { id: "part_either", label: "Either" }],
 };
-const SKIP: Msg = { kind: "buttons", options: [{ id: "skip", label: "⏩ Skip to Monday 10 am (demo)" }] };
 const FOLLOW: Msg = {
   kind: "buttons",
   options: [{ id: "both", label: "Do both" }, { id: "remind", label: "Just remind me" }, { id: "none", label: "No thanks" }],
@@ -67,15 +66,17 @@ const DOCTOR_CARD: Msg = {
     "*2. Dr. Anil Joshi*\nCity Heart Centre, Palasia\nLast seen: Nov 2023 · 1 visit",
 };
 
-const TRANSCRIPT =
-  "Saathi: Hello, this is Saathi, an AI assistant. I'm calling on behalf of Mr. Ramesh Sharma. Could I book an appointment with Dr. Kulkarni? He has visited your clinic before.\n\n" +
-  "Clinic: Yes, which day would you like?\n\n" +
-  "Saathi: The earliest morning slot you have.\n\n" +
-  "Clinic: Tomorrow at 11:30 am is free.\n\n" +
-  "Saathi: That works. 6 October, 11:30 am, under the name Ramesh Sharma. What are the fees, and should he bring any reports?\n\n" +
-  "Clinic: The fee is 800 rupees. Please bring his old reports.\n\n" +
-  "Saathi: Thank you. I'll send him the confirmation.\n\n" +
-  "Clinic: Okay, thank you.";
+// Timestamps (seconds into the call) drive the live timer and the transcript's [m:ss] labels.
+const CALL_LINES: { who: "Saathi" | "Clinic"; t: number; text: string }[] = [
+  { who: "Saathi", t: 4, text: "Hello, this is Saathi, an AI assistant. I'm calling on behalf of Mr. Ramesh Sharma. Could I book an appointment with Dr. Kulkarni? He has visited your clinic before." },
+  { who: "Clinic", t: 14, text: "Yes, which day would you like?" },
+  { who: "Saathi", t: 19, text: "The earliest morning slot you have." },
+  { who: "Clinic", t: 27, text: "Tomorrow at 11:30 am is free." },
+  { who: "Saathi", t: 36, text: "That works. 6 October, 11:30 am, under the name Ramesh Sharma. What are the fees, and should he bring any reports?" },
+  { who: "Clinic", t: 52, text: "The fee is 800 rupees. Please bring his old reports." },
+  { who: "Saathi", t: 66, text: "Thank you. I'll send him the confirmation." },
+  { who: "Clinic", t: 75, text: "Okay, thank you." },
+];
 
 const GREETING = /^\s*(hi+|hello+|hey+|namaste|hola)\b/i;
 const has = (i: DemoInput, id: string, re?: RegExp) => i.id === id || (!!re && !i.id && re.test(i.text ?? ""));
@@ -99,7 +100,6 @@ function reprompt(s: DemoState, lead: string): DemoResult {
     when: [WHEN],
     date: [],
     daypart: [PARTS],
-    scheduled: [SKIP],
     followup: [FOLLOW],
     done: [RESTART],
     end: [RESTART],
@@ -107,26 +107,23 @@ function reprompt(s: DemoState, lead: string): DemoResult {
   return { state: s, messages: [t(lead), ...by[s.step]] };
 }
 
-function monday(): DemoResult {
-  return {
-    state: { step: "followup" },
-    silent: true,
-    messages: [
-      { kind: "day", text: "Monday, 5 Oct" },
-      { kind: "system", text: "Saathi called Heartcare Clinic · 10:04 am (1 min 24 sec)" },
-      t("Ramesh, your appointment is confirmed ✅", "10:11 am"),
-      {
-        kind: "card",
-        time: "10:11 am",
-        text:
-          "📅 *Appointment confirmed*\n\n*Dr. Meera Kulkarni*, Cardiologist\n🗓 *Tuesday, 6 Oct · 11:30 am*\n" +
-          "📍 Heartcare Clinic, Vijay Nagar\n💰 Fees: ₹800 (payable at the clinic)\n🧾 Please bring: old reports and your medicine list",
-      },
-      { kind: "details", summary: "📄 View the call transcript (1 min 24 sec, Heartcare Clinic reception)", text: TRANSCRIPT, time: "10:11 am" },
-      t("What else can I do for you?\n\n🔔 Remind you tomorrow at 9:30 am?\n👨 Let Karan know?", "10:12 am"),
-      FOLLOW,
-    ],
-  };
+// The call happens right away (no overnight wait). It is placed on Monday morning so that
+// "tomorrow at 11:30" in the transcript is Tuesday 6 Oct, matching the confirmation card.
+function bookingFlow(): Msg[] {
+  return [
+    { kind: "day", text: "Monday, 5 Oct" },
+    { kind: "call", clinic: "Heartcare Clinic, Vijay Nagar", lines: CALL_LINES, duration: "1:24", time: "10:04 am" },
+    t("Ramesh, your appointment is confirmed ✅", "10:06 am"),
+    {
+      kind: "card",
+      time: "10:06 am",
+      text:
+        "📅 *Appointment confirmed*\n\n*Dr. Meera Kulkarni*, Cardiologist\n🗓 *Tuesday, 6 Oct · 11:30 am*\n" +
+        "📍 Heartcare Clinic, Vijay Nagar\n💰 Fees: ₹800 (payable at the clinic)\n🧾 Please bring: old reports and your medicine list",
+    },
+    t("What else can I do for you?\n\n🔔 Remind you tomorrow at 9:30 am?\n👨 Let Karan know?", "10:07 am"),
+    FOLLOW,
+  ];
 }
 
 export function saathiReply(state: DemoState | null | undefined, input: DemoInput): DemoResult {
@@ -265,28 +262,10 @@ export function saathiReply(state: DemoState | null | undefined, input: DemoInpu
         };
       }
       if (part === "morning") {
-        return {
-          state: { step: "scheduled" },
-          userTime: "7:48 pm",
-          messages: [
-            t("Perfect. Today is Sunday and the clinic is closed.\nI'll call the clinic tomorrow at *10 am, as soon as it opens*, and ask for the earliest morning slot.\n\n📞 I'll make the call as an *AI assistant*, and I'll tell the clinic that up front.\nAs soon as it's booked, I'll message you here. You don't need to do anything 🙂", "7:48 pm"),
-            { kind: "buttons", options: [{ id: "thumb", label: "👍" }, ...(SKIP as { options: Opt[] }).options] },
-          ],
-        };
+        return { state: { step: "followup" }, userTime: "7:48 pm", messages: bookingFlow() };
       }
       return reprompt(state, "In this demo the earliest-slot path is scripted for the morning. Please tap Morning.");
     }
-
-    case "scheduled":
-      if (input.id === "skip") return monday();
-      return {
-        state,
-        userTime: "7:49 pm",
-        messages: [
-          { kind: "system", text: "Saathi will call the clinic tomorrow at 10 am. Tap below to jump ahead (demo control)." },
-          SKIP,
-        ],
-      };
 
     case "followup":
       if (has(input, "both", /both/i)) {
