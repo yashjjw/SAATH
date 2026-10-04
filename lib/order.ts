@@ -257,8 +257,13 @@ function parsePharmacy(raw: string): { kind: "unavailable" | "confirmed" | "no_t
     if (Number.isFinite(n) && n > 0) total = n;
   }
   if (total === undefined) {
-    const m = raw.match(/(?:total|amount|bill|payable|pay)[^0-9₹]{0,24}(?:₹|rs\.?|inr)?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i) || raw.match(/(?:₹|rs\.?|inr)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
-    if (m) total = Number(m[1].replace(/,/g, ""));
+    // Several figures can appear ("item total ₹264, grand total ₹528"). Prefer the amount the customer pays:
+    // "grand total / payable / total" first (the last one wins), then looser words, then any rupee figure.
+    const NUM = "(?:₹|rs\\.?|inr)?\\s*([0-9][0-9,]*(?:\\.[0-9]{1,2})?)";
+    const last = (re: RegExp) => { const all = [...raw.matchAll(re)]; return all.length ? Number(all[all.length - 1][1].replace(/,/g, "")) : undefined; };
+    total = last(new RegExp(`(?:grand total|net payable|amount payable|payable|total)[^0-9₹]{0,24}${NUM}`, "gi"))
+      ?? last(new RegExp(`(?:amount|bill|pay)[^0-9₹]{0,24}${NUM}`, "gi"))
+      ?? last(/(?:₹|rs\.?|inr)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/gi);
   }
   if (total !== undefined && !(total > 0 && total < 100000)) total = undefined;
   if (/out of stock|not available|unavailable|not in stock|shortage|can'?t supply|cannot supply/i.test(raw)) return { kind: "unavailable", text };

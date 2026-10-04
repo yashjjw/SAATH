@@ -207,6 +207,19 @@ Saath mode. The agent reads the real photo and decides what to say and which req
 
 Every box shows a ✓ or ✗ with how the agent read what you sent, so the audience can see why it acted or didn't.
 
+**What to paste as the pharmacy's reply** (no pharmacy API is documented, so the agent reads free text or simple JSON):
+
+| Pharmacy says | Agent does |
+| --- | --- |
+| `Order confirmed. Total ₹528. Delivery in 2 days.` (any wording that confirms and states **one total**: `Total`, `Grand total`, `Payable`, `Amount`, `Bill`, with `₹`, `Rs`, `INR` or a bare number) | Tells Ramesh, creates the Pine Labs payment link for that amount |
+| `{"status":"CONFIRMED","total":528}` (JSON with `total`, `grand_total`, `total_amount` or `amount`) | Same |
+| Several figures, e.g. `Item total ₹264, grand total ₹528` | Uses the grand total / payable figure, else the last "total" mentioned |
+| `Order confirmed, will dispatch soon` (no amount) | Waits for an amount; no payment link yet |
+| `Pan-D 40 is out of stock` (also `not available`, `unavailable`, `shortage`, `can't supply`) | Tells Ramesh, offers to cancel, **does not substitute** (even if a total is mentioned) |
+| Anything it can't classify (`ok bhaiya`, `Total ₹0`, an amount of ₹1,00,000 or more) | Does nothing; the panel shows ✗ with why |
+
+After payment is confirmed, anything the pharmacy sends is relayed to Ramesh as "Update from Sunrise Pharmacy: …". Totals are treated as rupees. Give **one** total per reply.
+
 **Failure injections (the agent must handle each on its own)**
 
 | Inject | Paste | Expected |
