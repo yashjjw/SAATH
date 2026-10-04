@@ -11,6 +11,7 @@ export interface Clock {
   today: Day;
   appt: Day & { word: string };    // first open day from tomorrow; word: "tomorrow" | "on Monday"
   nextFriday: Day;
+  at: (offsetDays: number) => Day;   // any day relative to today, e.g. at(-2) for "two days ago"
 }
 
 const DEFAULT_TZ = "Asia/Kolkata";
@@ -43,5 +44,6 @@ export function makeClock(nowMs?: number, tzIn?: string): Clock {
     today: dayAt(0),
     appt: { ...appt, word: off === 1 ? "tomorrow" : `on ${appt.weekday}` },
     nextFriday: dayAt(((5 - dow + 7) % 7) || 7),
+    at: dayAt,
   };
 }

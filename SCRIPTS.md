@@ -143,31 +143,29 @@ At step 3's doctor buttons tap **Someone else**:
 
 ---
 
-### Doctor visit: the doctor's side of the same chat (Saath mode)
+### Doctor visit (Feature 2): Doctor Summary, then Doctor Mode, in the same chat (Saath mode)
 
-At the clinic, Ramesh picks **🩺 Doctor visit** from the menu (or types "doctor visit"). It works on its own, at any time: from a fresh "Hi", or after a booking, an order or a delivery, with no booking or prescription upload needed first. (The menu works from any resting point, so it also works after you've finished another flow.) Saath asks before sharing anything, then gives Dr. Kulkarni a history summary and she asks questions in the same thread, by typing, by voice note, or with the suggested-question buttons. Everything is read from Ramesh's record, which is **fictional mock data** in `lib/fixtures/ramesh.ts` (edit it freely).
+Menu → **🩺 Doctor visit** (or type "doctor visit" / "I've reached the clinic"). It works on its own at any time, with no booking or prescription upload needed first, and the menu works from any resting point. The record is **fictional mock data** in `lib/fixtures/ramesh.ts`; everything in it is "shared by the patient" and the summary says it is unverified.
 
 | Step | You do | Saath does |
 | --- | --- | --- |
-| 1 | Menu → **🩺 Doctor visit** | "I'll prepare a summary of your history for Dr. Meera Kulkarni. Shall I share it with her for this visit?" **[Yes, share] [Not now]** |
-| 2 | **Yes, share** | Shares, then sends the **history summary (about 190 to 200 words)**: who, last visit, recorded problems, medicines (including that amlodipine 5 mg from 14 Mar 2026 is not on today's prescription and no document records it stopping), the 9 advised tests with no results, no symptoms reported, no adherence records, and the coverage gaps. Then **[Current medicines] [Allergies] [Lab results] [Previous visits] [Reported symptoms] [Back to menu]** |
-| 3 | Ask questions | Answers from the record, each with its source and date |
-| 4 | **Back to menu** (or "hi") | Stops sharing and returns to the menu |
+| 1 | Menu → **🩺 Doctor visit** | "Ramesh, it looks like you've reached the clinic 📍 … I can prepare a one-page summary of your health history … Would you like me to prepare it?" **[Yes, prepare it] [Not now]** |
+| 2 | **Yes, prepare it** | "Done ✅ I've prepared this using your uploaded reports, medicines and information you've shared with me." Then the **📋 Doctor Summary: Ramesh Sharma, 63 M** card: reason for visit (routine BP check-up), known condition (hypertension since 2019), current medicine (amlodipine 5 mg, morning), recent readings (average home BP 148/92, patient-entered), latest reports (ECG and lipid profile, Mar 2026), allergy (penicillin, as stated by patient), family history (father's heart attack at 66), lifestyle, and the source disclaimer. Then "You can show this to the doctor… The doctor can also ask me questions directly, such as: *"When was his last ECG?"*" with **[Open Doctor Mode]** |
+| 3 | **Open Doctor Mode** | The **Doctor View** banner: "Answers come only from records and information Ramesh Sharma has shared. Saath does not diagnose, recommend treatment or make clinical decisions." with suggested questions |
+| 4 | The doctor asks (typing, voice note, or the buttons) | Answers only from what Ramesh shared, with the source |
+| 5 | **Exit Doctor Mode** (or "hi") | "Doctor Mode is closed 🔒" and back to the menu |
 
-Questions it understands (any wording, or the buttons): medicines, allergies, lab results or a specific test (`has he had an HbA1c`, `any ECG`, `did he have an echo`), previous visits, problems, reported symptoms (`any dizziness`), who the caregiver is, why he is here. How it answers:
+The three questions from the mock, and the answers:
 
-| Doctor asks | Saath says |
+| Doctor asks | Saath answers |
 | --- | --- |
-| `what is he on?` | The medicines with source and date, including the amlodipine discrepancy |
-| `any allergies?` | None recorded in any connected source: "an absence of records, not confirmation that he has none" |
-| `has he had an HbA1c` | Advised on the prescription, but no result in any connected source, with the date range it covers |
-| `did he have an echo` | "No record of echo in any connected source, covering Nov 2023 to today. Nothing before Nov 2023 is in any connected source." |
-| `is he taking the medicines` | "I can't tell you that." Evidence: none yet (no dispensing or reminder records) |
-| `could this be anaemia` | "I can't read it for you." plus what the record holds and what is absent |
-| `should I increase the amlodipine` | "That's yours to decide." plus the same adjacent facts |
-| Anything else | "I don't have that in the record." and what it can answer |
+| `When was the last ECG and what did it show?` | "The most recent ECG in Ramesh Sharma's shared records is from **14 March 2026**. The report states: **"Normal sinus rhythm, no acute changes."** Source: ECG report · 14 March 2026" with **[View report — Page 1]** |
+| `Any history of dizziness or chest discomfort?` | "I don't have any record of dizziness or chest discomfort in the uploaded documents. Ramesh did tell me on **{two days ago, e.g. 2 Oct}**: **"Sometimes I feel short of breath while climbing stairs."** Source: Patient statement · {date}. I don't have any other symptom information recorded. Please confirm directly with Ramesh." |
+| `Fine. What's his BP trend at home?` | "Patient-entered home BP readings from the last 14 days: **Average:** 148/92 · **Range:** 138/86 to 158/96 · **9 of 14 readings:** above 140/90. Source: Home BP entries by patient. *The home BP device has not been clinically validated by Saath.*" (computed from 14 stored readings) |
 
-The record refers to "the latest prescription on file" (medicines and tests from `lib/fixtures/prescription.ts`; the 9 tests there are placeholders), so it never claims a booking or an upload happened. Voice notes work here too, so the doctor can ask aloud.
+Other questions it understands: medicine, allergy, lipid profile, family history, lifestyle, reason for the visit, known condition, reports. Judgement questions get a one-line boundary: `could this be anaemia` → "I can't read it for you."; `should I increase the amlodipine` → "That's yours to decide.", each followed by what the shared records hold. `is he taking it` → "I can't tell you that" (no dispensing records). Anything else: "I don't have that in the records Ramesh has shared." The 2 Oct style date is two days before today on your clock.
+
+**Not built yet:** the mock's last steps (record the consultation if both sides agree, summarise the visit, ask Ramesh to upload the prescription). The pasted spec ended at the BP answer, so there was no wording for them.
 
 ---
 
@@ -294,6 +292,6 @@ For step 6, include `Tracking ID: 3714910042305` (also `AWB …`, `Waybill …`,
 | Chat UI (transcript card, buttons, list) | `public/index.html` |
 | Clinician prompt and record | `prompts/clinic.md`, `lib/fixtures/clinic.ts` |
 | Scripted prescription (edit the tests here) | `lib/fixtures/prescription.ts` |
-| Doctor visit (summary and questions) | `lib/doctor.ts` (logic), `lib/fixtures/ramesh.ts` (the record), `lib/saath.ts` (menu option 2) |
+| Doctor visit (Doctor Summary, Doctor Mode) | `lib/doctor.ts` (logic), `lib/fixtures/ramesh.ts` (the record), `lib/saath.ts` (menu option 2) |
 | Prescription → order workflow | `lib/order.ts` (logic), `api/chat.ts` (photo + events), Backend input panel in `public/index.html` |
 | Date and clock logic | `lib/clock.ts` |

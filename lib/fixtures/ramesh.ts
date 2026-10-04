@@ -1,28 +1,26 @@
-// Ramesh Sharma's record as the doctor's desk sees it. FICTIONAL mock data.
-// What is real in the demo: the doctors, clinics and visit dates already used in the Saath booking
-// flow (Dr. Meera Kulkarni, Heartcare Clinic, 3 visits, last 14 Mar 2026, amlodipine 5 mg;
-// Dr. Anil Joshi, City Heart Centre, 1 visit, Nov 2023) and today's prescription (Telma CT 40,
-// Ecosprin AV 75, Pan-D 40, each 1-0-0). The two recorded problems below are mock history written
-// for this demo: edit them freely.
-import { SAMPLE_EXTRACTION } from "./prescription.js";
+// Ramesh Sharma's shared health record, as the doctor sees it in Doctor Mode (Feature 2 mock).
+// FICTIONAL mock data. Everything here is "shared by the patient": uploaded reports and
+// information Ramesh typed in. Nothing is clinician-verified, and the summary says so.
+const bp = (s: number, d: number) => ({ sys: s, dia: d });
 
 export const RAMESH = {
-  name: "Ramesh Sharma", age: 63, sex: "M", city: "Indore",
-  caregiver: { name: "Karan", relation: "son", city: "Bengaluru" },
-  problems: [
-    { problem: "Hypertension", recorded: "Nov 2023", by: "Dr. Anil Joshi", where: "City Heart Centre, Palasia" },
-    { problem: "Dyslipidaemia", recorded: "14 Mar 2026", by: "Dr. Meera Kulkarni", where: "Heartcare Clinic, Vijay Nagar" },
+  name: "Ramesh Sharma", age: 63, sex: "M",
+  reasonForVisit: "Routine BP check-up",
+  condition: "Hypertension since 2019",
+  medicine: { name: "Amlodipine 5 mg", when: "morning" },
+  allergy: "Penicillin",
+  familyHistory: "Father had a heart attack at age 66",
+  lifestyle: "Non-smoker. Walks around 30 minutes daily.",
+  reports: [
+    { name: "ECG", date: "14 March 2026", short: "Mar 2026", finding: "Normal sinus rhythm, no acute changes.", page: 1 },
+    { name: "Lipid Profile", date: "Mar 2026", short: "Mar 2026", finding: null },   // report on file; values not extracted
   ],
-  allergies: [] as string[],                       // none recorded in any connected source
-  visits: [
-    { where: "Heartcare Clinic, Vijay Nagar", doctor: "Dr. Meera Kulkarni", count: 3, last: "14 Mar 2026", note: "prescribed amlodipine 5 mg" },
-    { where: "City Heart Centre, Palasia", doctor: "Dr. Anil Joshi", count: 1, last: "Nov 2023", note: "" },
+  // The patient's own symptom statement, made 2 days before the visit.
+  statement: { daysAgo: 2, quote: "Sometimes I feel short of breath while climbing stairs." },
+  // Home BP entered by the patient over the last 14 days: avg 148/92, range 138/86 to 158/96,
+  // 9 of 14 above 140/90 (either number above its limit).
+  homeBp: [
+    bp(138, 86), bp(139, 88), bp(140, 90), bp(138, 88), bp(140, 90),
+    bp(158, 96), bp(156, 96), bp(155, 95), bp(154, 95), bp(153, 94), bp(152, 94), bp(151, 93), bp(150, 92), bp(148, 91),
   ],
-  priorMedicine: { name: "Amlodipine 5 mg", by: "Dr. Meera Kulkarni", date: "14 Mar 2026" },
-  // today's SAATH upload (medicines and tests come from the scripted prescription)
-  prescription: {
-    meds: SAMPLE_EXTRACTION.lines.map((l) => ({ name: `${l.drug_name} ${l.strength}`, dose: l.dose_instruction ?? "" })),
-    tests: SAMPLE_EXTRACTION.tests ?? [],
-  },
-  coverage: { from: "Nov 2023", facilities: 2 },
 };

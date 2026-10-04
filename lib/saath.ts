@@ -5,14 +5,14 @@
 // renders the buttons/list/cards; a plain-text channel would degrade them to numbered options.
 import { makeClock, type Clock } from "./clock.js";
 import { callLines, CALL_META } from "./callscript.js";
-import { doctorAnswer, summaryText } from "./doctor.js";
+import { doctorAnswer, doctorSummaryCard, DOCTOR_VIEW_BANNER, ecgReportCard } from "./doctor.js";
 import { orderText, orderEvent, type RxData, type OrderData, type DeskUpdate, type OrderEvent } from "./order.js";
 
 export type Step =
   | "menu" | "reason" | "doctor" | "other_query" | "other_pick" | "when" | "date" | "daypart"
   | "followup" | "done" | "end"
   // prescription -> order -> payment -> delivery (lib/order.ts)
-  | "doctor_consent" | "doctor_chart"
+  | "doctor_consent" | "doctor_ready" | "doctor_chart"
   | "rx_wait" | "rx_offer" | "po_wait" | "po_decide" | "pay_approve" | "link_wait" | "pay_wait" | "pay_retry" | "dispatch_wait" | "ship_wait" | "delivered";
 
 export interface DemoState { step: Step; date?: string; rx?: RxData; order?: OrderData }
@@ -61,11 +61,13 @@ const FOLLOW: Msg = {
   kind: "buttons",
   options: [{ id: "both", label: "Do both" }, { id: "remind", label: "Just remind me" }, { id: "none", label: "No thanks" }],
 };
-const DOC_CONSENT: Msg = { kind: "buttons", options: [{ id: "doc_share", label: "Yes, share" }, { id: "doc_no", label: "Not now" }] };
-const DOC_ASK: Msg = {
-  kind: "buttons",
-  options: [{ id: "q_meds", label: "Current medicines" }, { id: "q_allergy", label: "Allergies" }, { id: "q_labs", label: "Lab results" }, { id: "q_visits", label: "Previous visits" }, { id: "q_symptoms", label: "Reported symptoms" }, { id: "doc_back", label: "Back to menu" }],
-};
+const DOC_CONSENT: Msg = { kind: "buttons", options: [{ id: "doc_share", label: "Yes, prepare it" }, { id: "doc_no", label: "Not now" }] };
+const DOC_OPEN: Msg = { kind: "buttons", options: [{ id: "doc_open", label: "Open Doctor Mode" }] };
+const DOC_CHIPS = [
+  { id: "q_ecg", label: "Last ECG" }, { id: "q_symptoms", label: "Dizziness or chest discomfort" }, { id: "q_bp", label: "Home BP trend" },
+  { id: "q_meds", label: "Medicine" }, { id: "q_allergy", label: "Allergy" },
+];
+const DOC_ASK: Msg = { kind: "buttons", options: [...DOC_CHIPS, { id: "doc_exit", label: "Exit Doctor Mode" }] };
 const BACK: Msg = { kind: "buttons", options: [{ id: "back_docs", label: "Back to my doctors" }] };
 
 const DOCTOR_CARD: Msg = {
@@ -100,7 +102,7 @@ function reprompt(s: DemoState, lead: string): DemoResult {
     followup: [FOLLOW],
     done: [MENU],
     end: [MENU],
-    doctor_consent: [DOC_CONSENT], doctor_chart: [DOC_ASK],
+    doctor_consent: [DOC_CONSENT], doctor_ready: [DOC_OPEN], doctor_chart: [DOC_ASK],
     rx_wait: [], rx_offer: [], po_wait: [], po_decide: [], pay_approve: [], link_wait: [], pay_wait: [], pay_retry: [], dispatch_wait: [], ship_wait: [], delivered: [],
   };
   return { state: s, messages: [t(lead), ...by[s.step]] };
@@ -156,10 +158,10 @@ export function saathReply(state: DemoState | null | undefined, input: DemoInput
           messages: [t("Send me a photo of the prescription using 📎 and I'll read it for you.")],
         };
       }
-      if (has(input, "menu_2", /^\s*2\b|doctor visit|summary.*doctor|see the doctor/i)) {
+      if (has(input, "menu_2", /^\s*2\b|doctor visit|summary.*doctor|see the doctor|reached the clinic|at the clinic/i)) {
         return {
           state: { step: "doctor_consent" },
-          messages: [t("Of course 👍 I'll prepare a summary of your history for *Dr. Meera Kulkarni*.\nShall I share it with her for this visit? You can stop sharing any time."), DOC_CONSENT],
+          messages: [t("Ramesh, it looks like you've reached the clinic 📍\n\nBefore you meet the doctor, I can prepare a *one-page summary of your health history* so you don't have to remember everything during the consultation.\n\nWould you like me to prepare it?"), DOC_CONSENT],
         };
       }
       if (/^menu_[456]$/.test(input.id ?? "") || /^\s*[456]\b/.test(text)) {
@@ -169,28 +171,42 @@ export function saathReply(state: DemoState | null | undefined, input: DemoInput
     }
 
     case "doctor_consent":
-      if (has(input, "doc_share", /^\s*(yes|ok(ay)?|sure|share|go ahead|haan)\b/i)) {
+      if (has(input, "doc_share", /^\s*(yes|yeah|ok(ay)?|sure|prepare|go ahead|haan)\b/i)) {
         return {
-          state: { step: "doctor_chart" },
+          state: { step: "doctor_ready" },
           messages: [
-            t("Thank you, Ramesh. Sharing with Dr. Kulkarni now 🔒"),
-            t(`Dr. Kulkarni, here is Ramesh Sharma's history from the record, in about 200 words:`),
-            t(summaryText(clock)),
-            t("Ask me anything about the record."),
-            DOC_ASK,
+            t("Done ✅\nI've prepared this using your *uploaded reports, medicines and information you've shared with me.*"),
+            { kind: "card", text: doctorSummaryCard() },
+            t("You can show this to the doctor when you go in.\n\nThe doctor can also ask me questions directly, such as:\n\n*\"When was his last ECG?\"*\n\nI'll answer only from the health records and information you've chosen to share, and I'll show the source wherever possible."),
+            DOC_OPEN,
           ],
         };
       }
       if (has(input, "doc_no", /^\s*(no|not now|nahi|later)\b/i)) {
-        return { state: { step: "menu" }, messages: [t("No problem 🙏 I haven't shared anything. Is there anything else I can help you with?"), MENU] };
+        return { state: { step: "menu" }, messages: [t("No problem 🙏 I haven't prepared or shared anything. Is there anything else I can help you with?"), MENU] };
       }
-      return reprompt(state, "Shall I share your history with Dr. Kulkarni for this visit?");
+      return reprompt(state, "Would you like me to prepare a one-page summary of your health history for the doctor?");
 
-    case "doctor_chart":
-      if (input.id === "doc_back" || /^\s*(back|menu|stop sharing|done)\b/i.test(text)) {
-        return { state: { step: "menu" }, messages: [t("Okay, I've stopped sharing. Back to the menu 👇"), MENU] };
+    case "doctor_ready":
+      if (has(input, "doc_open", /open doctor mode|doctor mode|^\s*open\b/i)) {
+        return { state: { step: "doctor_chart" }, messages: [{ kind: "card", text: DOCTOR_VIEW_BANNER }, DOC_ASK] };
       }
-      return { state, messages: [t(doctorAnswer(text, input.id, clock)), DOC_ASK] };
+      if (input.id === "doc_back" || /^\s*(back|menu|done)\b/i.test(text)) {
+        return { state: { step: "menu" }, messages: [t("Okay 👍 Back to the menu 👇"), MENU] };
+      }
+      return reprompt(state, "You can show the summary above to the doctor, or open Doctor Mode so the doctor can ask me questions.");
+
+    case "doctor_chart": {
+      if (input.id === "doc_exit" || /^\s*(exit|close|back|menu|done|stop)\b/i.test(text)) {
+        return { state: { step: "menu" }, messages: [t("Doctor Mode is closed 🔒 Back to the menu 👇"), MENU] };
+      }
+      if (input.id === "view_ecg") return { state, messages: [{ kind: "card", text: ecgReportCard() }, DOC_ASK] };
+      const a = doctorAnswer(text, input.id, clock);
+      const chips: Msg = a.reportButton
+        ? { kind: "buttons", options: [{ id: "view_ecg", label: "View report — Page 1" }, ...DOC_CHIPS.filter((x) => x.id !== "q_ecg"), { id: "doc_exit", label: "Exit Doctor Mode" }] }
+        : DOC_ASK;
+      return { state, messages: [t(a.text), chips] };
+    }
 
     case "reason":
       if (/cardio|heart/i.test(text)) {
