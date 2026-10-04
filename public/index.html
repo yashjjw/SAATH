@@ -134,6 +134,8 @@
   .de .dr { margin-top: 5px; font-size: 12px; } .de .dr.ok { color: #1fa855; } .de .dr.bad { color: #d64545; } .de .dr.pend { color: var(--time); }
   #desk .din { border-top: 1px solid var(--shadow); padding: 8px 12px 12px; display: flex; flex-direction: column; gap: 8px; max-height: 52%; overflow-y: auto; }
   #desk section label { font-weight: 600; font-size: 12px; display: block; margin-bottom: 3px; }
+  #desk section.await { outline: 2px solid #00a884; outline-offset: 4px; border-radius: 6px; }
+  #desk section.await label::after { content: "  ← response expected"; color: #00a884; font-weight: 500; }
   #desk textarea { width: 100%; box-sizing: border-box; resize: vertical; min-height: 44px; max-height: 160px; border: 1px solid var(--shadow); border-radius: 8px; padding: 6px 8px; background: var(--field); color: var(--text); font: 12px/1.4 ui-monospace, Menlo, Consolas, monospace; }
   #desk .drow { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 4px; }
   #desk .drow button { border: 1px solid var(--shadow); background: var(--bar); color: var(--text); border-radius: 12px; padding: 3px 10px; font-size: 11.5px; cursor: pointer; }
@@ -500,6 +502,7 @@ $("dclose").onclick = () => setDesk(false);
 
 function dEntry(cls) { dlog.querySelector(".empty")?.remove(); const d = document.createElement("div"); d.className = "de " + cls; dlog.appendChild(d); dlog.scrollTop = dlog.scrollHeight; return d; }
 function addRequest(c) {
+  const sec = document.querySelector(`#desk section[data-sys="${c.system}"]`); if (sec) sec.classList.add("await");   // this source now owes the agent a reply
   const d = dEntry("req");
   const t = document.createElement("div"); t.className = "dt"; t.textContent = `→ Agent → ${SYS[c.system] || c.system}: ${c.label}`; d.appendChild(t);
   if (c.url) { const m = document.createElement("div"); m.className = "dm"; m.textContent = `${c.method || ""} ${c.url}`.trim(); d.appendChild(m); }
@@ -529,6 +532,7 @@ function setExamples(set) {
 function applyDesk(d) {
   if (!d) return;
   if (d.ack && deskPending) { setResult(deskPending, d.ack.ok, d.ack.note); deskPending = null; }
+  if (d.ack && d.ack.ok) document.querySelector(`#desk section[data-sys="${d.ack.system}"]`)?.classList.remove("await");
   (d.requests || []).forEach(addRequest);
   (d.examples || []).forEach(setExamples);
 }
@@ -536,6 +540,7 @@ function deskReset() {
   dlog.innerHTML = '<div class="empty">Nothing yet. Requests the agent makes will appear here.</div>';
   document.querySelectorAll("#desk textarea").forEach((x) => { x.value = ""; });
   document.querySelectorAll("#desk .dex").forEach((x) => { x.innerHTML = ""; });
+  document.querySelectorAll("#desk section.await").forEach((x) => x.classList.remove("await"));
   deskPending = null;
 }
 async function sendEvent(system, raw) {

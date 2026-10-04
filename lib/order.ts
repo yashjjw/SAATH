@@ -32,6 +32,7 @@ export interface OrderData {
   upi?: string;              // pharmacy's UPI id, from its reply
   eta?: string;              // delivery time the pharmacy quoted, e.g. "4 days"
   awb?: string;              // Delhivery tracking id, from the pharmacy's reply
+  tracking?: boolean;        // a tracking request is out and Delhivery's response is awaited
   stage?: string;            // last delivery stage
   where?: string;            // last delivery location, if the update had one
 }
@@ -60,6 +61,7 @@ const clip = (s: string, n = 200) => (s.length > n ? s.slice(0, n - 1) + "…" :
 
 export const OFFER = btn(["order_yes", "Yes, order them"], ["order_no", "Not now"]);
 const CANCEL = btn(["order_cancel", "Cancel order"]);
+const TRACK = btn(["track_delivery", "📦 Track my delivery"]);
 const APPROVE = btn(["pay_approve", "Approve payment"], ["order_cancel", "Cancel order"]);
 const NEW_LINK = btn(["new_link", "Send a new link"]);
 const RETRY_LINK = btn(["retry_link", "Try again"]);
@@ -166,6 +168,24 @@ function webhookExamples(o: OrderData): ExampleSet {
   };
 }
 
+function trackRequest(o: OrderData): ApiCall {
+  return {
+    system: "delhivery",
+    label: "Track shipment",
+    text: `Tracking ID (waybill): ${o.awb}`,
+    note: "Delhivery's tracking API details aren't in the docs provided, so no endpoint or fields are invented here. Paste the real tracking response from the Delhivery developer portal (or a real shipment's history), or just a status such as In Transit.",
+  };
+}
+const delhiveryExamples = (): ExampleSet => ({
+  system: "delhivery",
+  items: [
+    { label: "In Transit", json: "In Transit" },
+    { label: "Out for Delivery", json: "Out for Delivery" },
+    { label: "Delivered", json: "Delivered" },
+    { label: "Undelivered (problem)", json: "Undelivered" },
+  ],
+});
+
 function askPharmacy(rx: RxData, o: OrderData): DemoResult {
   return {
     state: { step: "po_wait", rx, order: o },
@@ -248,9 +268,18 @@ export function orderText(state: DemoState, input: { id?: string; text?: string 
       return { state, messages: [t("Shall I send you a new payment link?"), NEW_LINK] };
 
     case "ship_wait": {
-      const id2 = o?.awb ? `Delhivery tracking ID: ${o.awb}. You can follow it in the Delhivery app.` : "";
-      const last = o?.stage ? `Last update: ${o.stage}${o.where ? ` (${o.where})` : ""}.` : "Your order has been dispatched.";
-      return { state, messages: [t(`${last}${id2 ? "\n" + id2 : ""}\nI'll tell you if there's news 📦`)] };
+      const wantsTrack = id === "track_delivery" || (!id && /\b(track|tracking|where('?s| is) my|status|parcel|consignment|delivery update)\b/i.test(text));
+      if (wantsTrack && o?.awb) {
+        if (o.tracking) return { state, messages: [t("I'm still waiting for Delhivery's response 📦 I'll tell you as soon as it arrives.")] };
+        return {
+          state: { ...state, order: { ...o, tracking: true } },
+          messages: [t(`Checking with Delhivery for tracking ID ${o.awb}… 🔎`)],
+          desk: { requests: [trackRequest(o)], examples: [delhiveryExamples()] },
+        };
+      }
+      const known = o?.stage && o.stage !== "dispatched" ? `Last update: ${o.stage}${o.where ? ` (${o.where})` : ""}.` : "Your order has been dispatched.";
+      const idLine = o?.awb ? `\nDelhivery tracking ID: ${o.awb}. You can follow it in the Delhivery app.` : "";
+      return { state, messages: [t(`${known}${idLine}`), TRACK] };
     }
 
     case "delivered":
@@ -447,8 +476,8 @@ export function orderEvent(state: DemoState | null, ev: OrderEvent, c: Clock, no
         const eta = extractEta(raw) ?? o.eta;
         return {
           state: { step: "ship_wait", rx, order: { ...o, awb, eta, stage: "dispatched" } },
-          messages: [t(`Your order has been dispatched 🚚\nDelhivery tracking ID: ${awb}${eta ? `\nExpected delivery: within ${eta}` : ""}\nYou can track your consignment in the Delhivery app. I'll tell you here if there's any news.`)],
-          desk: { ack: ack(sys, true, `Read as: dispatched, tracking ID ${awb}.`) },
+          messages: [t(`Your order has been dispatched 🚚\nDelhivery tracking ID: ${awb}${eta ? `\nExpected delivery: within ${eta}` : ""}\nYou can track your consignment in the Delhivery app, or ask me to check it for you.`), TRACK],
+          desk: { ack: ack(sys, true, `Read as: dispatched, tracking ID ${awb}.`), examples: [delhiveryExamples()] },
         };
       }
       return { state, messages: [t(`Update from ${PHARMACY}: “${clip(raw)}”`)], desk: { ack: ack(sys, true, "No tracking ID found in this; relayed to Ramesh. The agent is still waiting for the ID.") } };
@@ -499,15 +528,21 @@ export function orderEvent(state: DemoState | null, ev: OrderEvent, c: Clock, no
     if (state.step !== "ship_wait") return wrongNow();
     const s = stageOf(raw);
     if (!s) return { ...empty(state), desk: { ack: ack(sys, false, "Couldn't find a delivery status (e.g. In Transit, Out for Delivery, Delivered) in this, so the agent did nothing.") } };
-    const o2: OrderData = { ...o, stage: s.stage, where: s.where };
+    const answering = !!o.tracking;
+    const o2: OrderData = { ...o, stage: s.stage, where: s.where, tracking: false };
     if (STAGE_MSG[s.stage]) {
       const done = s.stage === "delivered";
-      return { state: { step: done ? "delivered" : "ship_wait", rx, order: o2 }, messages: [t(STAGE_MSG[s.stage](s.where))], desk: { ack: ack(sys, true, `Read as: ${s.stage}${s.where ? ` at ${s.where}` : ""}.`) } };
+      const text = (answering ? "Here's the latest from Delhivery 📦\n" : "") + STAGE_MSG[s.stage](s.where);
+      return {
+        state: { step: done ? "delivered" : "ship_wait", rx, order: o2 },
+        messages: done ? [t(text)] : [t(text), TRACK],
+        desk: { ack: ack(sys, true, `Read as: ${s.stage}${s.where ? ` at ${s.where}` : ""}.`) },
+      };
     }
     const label = { rto: "being returned to the pharmacy", lost: "reported lost", cancelled: "cancelled", undelivered: "not delivered (the courier couldn't hand it over)" }[s.stage] ?? s.stage;
     return {
       state: { step: "ship_wait", rx, order: o2 },
-      messages: [t(`There's a problem with your delivery: the parcel is ${label}. I haven't changed anything and I won't reorder without your OK. Please contact the pharmacy; I'll keep tracking and tell you when there's news.`)],
+      messages: [t(`There's a problem with your delivery: the parcel is ${label}. I haven't changed anything and I won't reorder without your OK. Please contact the pharmacy; I'll keep tracking and tell you when there's news.`), TRACK],
       desk: { ack: ack(sys, true, `Read as: ${s.stage}. Flagged to Ramesh, no action taken.`) },
     };
   }
