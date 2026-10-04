@@ -124,7 +124,7 @@ At step 3's doctor buttons tap **Someone else**:
 | You do | Saath says |
 | --- | --- |
 | Pick **2. Dr. Joshi** | I can't book with Dr. Joshi right now. Would you like to see Dr. Kulkarni instead? |
-| Menu options 4, 5 or 6 | I can't help with that just yet. Right now I can book appointments for you 📅 (+ menu) |
+| Menu options 5, 6 or 7 | I can't help with that just yet. Right now I can book appointments for you 📅 (+ menu) |
 | Menu option 2, **Doctor visit** | Starts the doctor's side: see the section below |
 | Menu option 3, **Upload a prescription** | Send me a photo of the prescription using 📎 and I'll read it for you. (A photo then goes through the real prescription reader.) |
 | Anything unrecognised at the reason step | I can help you book a cardiologist. Tell me, for example, "I need to see a heart doctor". |
@@ -166,6 +166,23 @@ The three questions from the mock, and the answers:
 Other questions it understands: medicine, allergy, lipid profile, family history, lifestyle, reason for the visit, known condition, reports. Judgement questions get a one-line boundary: `could this be anaemia` → "I can't read it for you."; `should I increase the amlodipine` → "That's yours to decide.", each followed by what the shared records hold. `is he taking it` → "I can't tell you that" (no dispensing records). Anything else: "I don't have that in the records Ramesh has shared." The 2 Oct style date is two days before today on your clock.
 
 **Not built yet:** the mock's last steps (record the consultation if both sides agree, summarise the visit, ask Ramesh to upload the prescription). The pasted spec ended at the BP answer, so there was no wording for them.
+
+---
+
+### Test reports (PDF) → plain-language summary → send to the doctor and family (Saath mode)
+
+Menu → **🧪 Upload test reports** (right after *Upload a prescription*), or just attach a PDF with 📎 at any resting point. **The summary is fixed text** (Ramesh's reports of 3 October): the PDF is checked to be a real PDF (its header must be `%PDF-`, at most 20 MB) and shown as a document bubble, but its contents are **not analysed**. Reading real lab reports would need a model.
+
+| Step | You do | Saath does |
+| --- | --- | --- |
+| 1 | Menu → **🧪 Upload test reports** | "Send me your test reports as a PDF using 📎 and I'll explain them in simple words 🧪" |
+| 2 | 📎, pick a PDF | A `reports.pdf · PDF · size` bubble, then "Got it, reading your test reports 🔍" and the summary card (below). A non-PDF or a text file renamed `.pdf` is rejected; a photo while waiting for reports asks for a PDF instead |
+| 3 | Choose who gets it | "Would you like me to send this summary to your doctor or to Karan?" **[Send to Dr. Meera Kulkarni] [Send to Karan] [Send to both] [Not now]** |
+| 4 | Tap one | "Done ✅ I've sent this summary to **Dr. Meera Kulkarni** at Heartcare Clinic." / "…to **Karan**." plus "I shared the summary only, not your other records." Then the other option is offered ("Send to Karan too" / "Send to Dr. Meera Kulkarni too") with **[Done]**, and once both are sent: "That's everyone." |
+
+The summary (your wording): "Ramesh ji, your tests from 3 October are back. Most things look fine, but three need your doctor's attention." then **Not fine** (Sugar 8.6% against a healthy level under 5.7%; Liver about double March; Cholesterol with low "good" and high "bad"), **Fine** (blood count, kidneys, thyroid normal; ECG mostly normal with one small change the lab calls minor), **Compared with your earlier reports** (sugar and cholesterol creeping up, liver the biggest jump), and "This is not a diagnosis. Only your doctor can tell you what it means, so please show them this report soon."
+
+Sending is simulated (no real message goes to the clinic or to Karan). Typing works too: `send to the doctor`, `send to Karan`, `both`, `no`.
 
 ---
 
@@ -293,5 +310,6 @@ For step 6, include `Tracking ID: 3714910042305` (also `AWB …`, `Waybill …`,
 | Clinician prompt and record | `prompts/clinic.md`, `lib/fixtures/clinic.ts` |
 | Scripted prescription (edit the tests here) | `lib/fixtures/prescription.ts` |
 | Doctor visit (Doctor Summary, Doctor Mode) | `lib/doctor.ts` (logic), `lib/fixtures/ramesh.ts` (the record), `lib/saath.ts` (menu option 2) |
+| Test reports → summary → send to doctor / family | `lib/reports.ts` (summary text and sending), `api/chat.ts` (PDF), `public/index.html` (PDF bubble) |
 | Prescription → order workflow | `lib/order.ts` (logic), `api/chat.ts` (photo + events), Backend input panel in `public/index.html` |
 | Date and clock logic | `lib/clock.ts` |

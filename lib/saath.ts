@@ -6,6 +6,7 @@
 import { makeClock, type Clock } from "./clock.js";
 import { callLines, CALL_META } from "./callscript.js";
 import { doctorAnswer, doctorSummaryCard, DOCTOR_VIEW_BANNER, ecgReportCard } from "./doctor.js";
+import { reportStep, reportWait } from "./reports.js";
 import { orderText, orderEvent, type RxData, type OrderData, type DeskUpdate, type OrderEvent } from "./order.js";
 
 export type Step =
@@ -13,9 +14,10 @@ export type Step =
   | "followup" | "done" | "end"
   // prescription -> order -> payment -> delivery (lib/order.ts)
   | "doctor_consent" | "doctor_ready" | "doctor_chart"
+  | "rpt_wait" | "rpt_sent"
   | "rx_wait" | "rx_offer" | "po_wait" | "po_decide" | "pay_approve" | "link_wait" | "pay_wait" | "pay_retry" | "dispatch_wait" | "ship_wait" | "delivered";
 
-export interface DemoState { step: Step; date?: string; rx?: RxData; order?: OrderData }
+export interface DemoState { step: Step; date?: string; rx?: RxData; order?: OrderData; sent?: string[] }
 export interface Opt { id: string; label: string }
 export type Msg =
   | { kind: "text"; text: string }
@@ -43,6 +45,7 @@ const MENU: Msg = {
     { id: "menu_1", title: "📅 Book an appointment", desc: "Find a doctor and call the clinic to get a slot" },
     { id: "menu_2", title: "🩺 Doctor visit", desc: "A summary of your history, and a summary of what the doctor said" },
     { id: "menu_3", title: "💊 Upload a prescription", desc: "What to take and when, and ordering your medicines" },
+    { id: "menu_reports", title: "🧪 Upload test reports", desc: "Your lab and ECG reports, explained in simple words" },
     { id: "menu_4", title: "📦 Where is my order?", desc: "Delivery status of your medicines" },
     { id: "menu_5", title: "⏰ Medicine reminders", desc: "Reminders at the right time" },
     { id: "menu_6", title: "📊 My health report", desc: "Your week at a glance, and sharing with family" },
@@ -102,7 +105,7 @@ function reprompt(s: DemoState, lead: string): DemoResult {
     followup: [FOLLOW],
     done: [MENU],
     end: [MENU],
-    doctor_consent: [DOC_CONSENT], doctor_ready: [DOC_OPEN], doctor_chart: [DOC_ASK],
+    doctor_consent: [DOC_CONSENT], doctor_ready: [DOC_OPEN], doctor_chart: [DOC_ASK], rpt_wait: [], rpt_sent: [],
     rx_wait: [], rx_offer: [], po_wait: [], po_decide: [], pay_approve: [], link_wait: [], pay_wait: [], pay_retry: [], dispatch_wait: [], ship_wait: [], delivered: [],
   };
   return { state: s, messages: [t(lead), ...by[s.step]] };
@@ -135,8 +138,13 @@ export function saathReply(state: DemoState | null | undefined, input: DemoInput
   if (input.id === "restart" || GREETING.test(text) || !state) return greet();
   // The menu works from any resting point (e.g. "Doctor visit" right after a booking or a delivery),
   // not only straight after "Hi". Its buttons are only on screen at such points.
-  if (state.step !== "menu" && (/^menu_\d$/.test(input.id ?? "") || (["done", "end", "delivered"].includes(state.step) && /doctor visit|book (an )?appointment|upload (a )?prescription/i.test(text)))) {
+  if (state.step !== "menu" && (/^menu_(\d|reports)$/.test(input.id ?? "") || (["done", "end", "delivered"].includes(state.step) && /doctor visit|book (an )?appointment|upload (a )?prescription|upload (my )?(test )?reports?/i.test(text)))) {
     return saathReply({ step: "menu" }, input);
+  }
+  // Test-report steps (summary on screen, choose who to send it to).
+  if (state.step === "rpt_wait" || state.step === "rpt_sent") {
+    const r = reportStep(state, input);
+    if (r) return r;
   }
   // Steps of the prescription -> order -> delivery workflow have their own handling.
   if (state.rx || state.step.startsWith("rx_") || ["po_wait", "po_decide", "pay_approve", "link_wait", "pay_wait", "pay_retry", "dispatch_wait", "ship_wait", "delivered"].includes(state.step)) {
@@ -164,7 +172,10 @@ export function saathReply(state: DemoState | null | undefined, input: DemoInput
           messages: [t("Ramesh, it looks like you've reached the clinic 📍\n\nBefore you meet the doctor, I can prepare a *one-page summary of your health history* so you don't have to remember everything during the consultation.\n\nWould you like me to prepare it?"), DOC_CONSENT],
         };
       }
-      if (/^menu_[456]$/.test(input.id ?? "") || /^\s*[456]\b/.test(text)) {
+      if (has(input, "menu_reports", /^\s*4\b|test reports?|lab reports?|upload (my )?reports?/i)) {
+        return { state: { step: "rpt_wait" }, messages: [t("Send me your test reports as a PDF using 📎 and I'll explain them in simple words 🧪")] };
+      }
+      if (/^menu_[456]$/.test(input.id ?? "") || /^\s*[567]\b/.test(text)) {
         return { state, messages: [t("I can't help with that just yet. Right now I can book appointments for you 📅"), MENU] };
       }
       return reprompt(state, "Please choose one from the menu 👇");

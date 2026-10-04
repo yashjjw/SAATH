@@ -4,6 +4,7 @@ import { chatReply, extractPrescription, formatExtraction } from "../lib/agent.j
 import { clinicReply } from "../lib/clinic.js";
 import { saathReply, type DemoState } from "../lib/saath.js";
 import { rxFromExtraction, type OrderEvent } from "../lib/order.js";
+import { reportFromUpload, isPdf, type UploadedDoc } from "../lib/reports.js";
 import { SAMPLE_EXTRACTION } from "../lib/fixtures/prescription.js";
 import type { ChatTurn } from "../lib/model.js";
 
@@ -18,9 +19,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: "wrong password" });
   }
 
-  const { text = "", image, mode = "patient", history = [], state = null, id, now, tz, event } = (req.body ?? {}) as {
+  const { text = "", image, document, mode = "patient", history = [], state = null, id, now, tz, event } = (req.body ?? {}) as {
     text?: string;
     image?: { base64: string; mime: string };
+    document?: UploadedDoc;
     mode?: "saath" | "patient" | "clinic";
     history?: ChatTurn[];
     state?: DemoState | null;
@@ -33,11 +35,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     // Scripted demo: deterministic, no model call. A photo falls through to the real reader below.
-    if (mode === "saath" && !image) return res.json(saathReply(state, { id, text: caption, now, tz, event }));
+    if (mode === "saath" && !image && !document) return res.json(saathReply(state, { id, text: caption, now, tz, event }));
 
+
+    // A test-report PDF in Saath mode (the PDF is validated, the summary is fixed: see lib/reports.ts).
+    if (mode === "saath" && document) {
+      const inOrder = ["po_wait", "po_decide", "pay_approve", "link_wait", "pay_wait", "pay_retry", "dispatch_wait", "ship_wait"];
+      if (state && inOrder.includes(state.step)) return res.json({ state, messages: [{ kind: "text", text: "Let's finish your current order first 🙏 I'll be ready for your reports right after." }] });
+      if (!isPdf(document)) return res.json({ state, messages: [{ kind: "text", text: "I can read test reports as a PDF. Please send the report as a PDF file." }] });
+      return res.json(reportFromUpload());
+    }
 
     // A prescription photo in Saath mode: the real reader, then the order workflow (lib/order.ts).
     if (mode === "saath" && image) {
+      if (state && state.step === "rpt_wait") return res.json({ state, messages: [{ kind: "text", text: "I can read test reports as a PDF. Please send the report as a PDF file." }] });
       const busy = ["po_wait", "po_decide", "pay_approve", "link_wait", "pay_wait", "pay_retry", "dispatch_wait", "ship_wait"];
       if (state && busy.includes(state.step)) {
         return res.json({ state: state, messages: [{ kind: "text", text: "Let's finish your current order first 🙏 I'll be ready for the next prescription right after." }] });

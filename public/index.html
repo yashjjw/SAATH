@@ -118,6 +118,10 @@
   .spk { background: none; border: 0; cursor: pointer; font-size: 12px; opacity: .55; padding: 0 3px; }
   .spk:hover { opacity: 1; }
   .msg a { color: #027eb5; word-break: break-all; }
+  .docrow { display: flex; align-items: center; gap: 10px; min-width: 220px; padding: 6px 4px 8px; }
+  .docrow .di { width: 38px; height: 44px; border-radius: 6px; background: #e53935; color: #fff; font-size: 11px; font-weight: 700; display: grid; place-items: center; flex: none; }
+  .docrow b { display: block; font-weight: 600; word-break: break-all; font-size: 13.5px; }
+  .docrow small { color: var(--time); font-size: 12px; }
   #desk { position: fixed; top: 0; right: 0; bottom: 0; width: 460px; max-width: 100vw; background: var(--in); color: var(--text); border-left: 1px solid var(--shadow); box-shadow: -2px 0 8px var(--shadow); display: none; flex-direction: column; z-index: 15; font-size: 13px; }
   html.desk-open #desk { display: flex; }
   @media (min-width: 1180px) {
@@ -177,7 +181,7 @@
   <div class="recbar" id="recbar"><button type="button" id="rcancel" aria-label="Cancel recording">🗑</button><span class="dot"></span><span class="rt" id="rtime">0:00</span><span class="rh">Recording voice note…</span></div>
   <button id="go" type="submit" aria-label="Send"></button>
 </form>
-<input id="file" type="file" accept="image/*" hidden>
+<input id="file" type="file" accept="image/*,application/pdf,.pdf" hidden>
 
 <aside id="desk" aria-label="Backend input">
   <div class="dh"><div><b>Backend input</b><span>API exchanges between the agent and Pharmacy, Pine Labs and Delhivery. What you paste below is what those services "send back".</span></div><button id="dclose" type="button" aria-label="Close">✕</button></div>
@@ -311,12 +315,28 @@ $("mode").onclick = () => {
 $("file").onchange = async (e) => {
   const f = e.target.files[0]; e.target.value = "";
   if (!f) return;
+  if (f.type === "application/pdf" || /\.pdf$/i.test(f.name)) return sendDocument(f);
   try {
     pending = await loadImage(f);
     $("pimg").src = pending.url; $("pcap").value = text.value;
     $("preview").classList.add("on"); $("pcap").focus();
   } catch (err) { system(err.message); }
 };
+async function sendDocument(f) {
+  if (f.size > 20 * 1024 * 1024) return system("That PDF is larger than 20 MB. Please send a smaller one.");
+  let head = ""; try { head = await f.slice(0, 5).text(); } catch {}
+  if (head !== "%PDF-") return system("That file doesn't look like a valid PDF. Please send the report as a PDF.");
+  return send("", null, undefined, undefined, undefined, { name: f.name, size: f.size, mime: "application/pdf" });
+}
+function docBubble(doc) {
+  const d = bubble("out", "", null, "doc");
+  const kb = doc.size >= 1048576 ? (doc.size / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(doc.size / 1024)) + " KB";
+  const row = document.createElement("div"); row.className = "docrow";
+  row.innerHTML = '<div class="di">PDF</div><div><b></b><small></small></div>';
+  row.querySelector("b").textContent = doc.name; row.querySelector("small").textContent = `PDF · ${kb}`;
+  d.insertBefore(row, d.firstChild);
+  return d;
+}
 const closePreview = () => { $("preview").classList.remove("on"); pending = null; };
 $("pclose").onclick = closePreview;
 $("psend").onclick = () => { const img = pending, cap = $("pcap").value.trim(); closePreview(); text.value = ""; refreshButton(); send(cap, img); };
@@ -563,12 +583,12 @@ document.querySelectorAll("#desk section").forEach((sec) => {
   sec.querySelector(".dsend").onclick = async () => { const v = ta.value; if (!v.trim()) return; ta.value = ""; fitBox(ta); await sendEvent(sec.dataset.sys, v); };
 });
 
-async function send(t, img, id, voice, event) {
-  if (busy || (!t && !img && !id && !event)) return;
+async function send(t, img, id, voice, event, doc) {
+  if (busy || (!t && !img && !id && !event && !doc)) return;
   if (!key() && !askKey()) return;
   busy = true;
   if (!event) clearChips();
-  const mine = event ? null : voice ? voiceBubble(voice.url, voice.secs, t) : bubble("out", t, img && img.url);
+  const mine = event ? null : doc ? docBubble(doc) : voice ? voiceBubble(voice.url, voice.secs, t) : bubble("out", t, img && img.url);
   if (mine) { await sleep(250); setTicks(mine, 2); }
   if (!event) setStatus("typing…");
   const dots = event ? null : typingDots();
@@ -577,7 +597,7 @@ async function send(t, img, id, voice, event) {
     const r = await fetch("/api/chat", {
       method: "POST",
       headers: { "content-type": "application/json", "x-test-key": key() },
-      body: JSON.stringify({ text: t, id, event, mode, state: demo, now: Date.now(), tz: Intl.DateTimeFormat().resolvedOptions().timeZone, history: mode === "clinic" ? history : [], image: img && { base64: img.base64, mime: img.mime } }),
+      body: JSON.stringify({ text: t, id, event, document: doc, mode, state: demo, now: Date.now(), tz: Intl.DateTimeFormat().resolvedOptions().timeZone, history: mode === "clinic" ? history : [], image: img && { base64: img.base64, mime: img.mime } }),
     });
     if (dots) dots.remove(); setStatus("online");
     if (r.status === 401) { sessionStorage.removeItem("saath_key"); busy = false; return system("Wrong password. Tap ⋮ to enter it again."); }
