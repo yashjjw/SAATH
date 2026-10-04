@@ -171,8 +171,8 @@ function playUrl(url) {
   return new Promise((resolve) => {
     const a = new Audio(url); audioEl = a;
     let done = false, guard = setTimeout(() => finish(0), 25000);
-    const finish = (d) => { if (done) return; done = true; clearTimeout(guard); resolve(d || a.duration || 0); };
-    a.onloadedmetadata = () => { clearTimeout(guard); guard = setTimeout(() => finish(a.duration), a.duration * 1000 + 1500); };
+    const finish = (d) => { if (done) return; done = true; clearTimeout(guard); resolve(d || (isFinite(a.duration) ? a.duration : 0)); };
+    a.onloadedmetadata = () => { if (!isFinite(a.duration)) return; clearTimeout(guard); guard = setTimeout(() => finish(a.duration), a.duration * 1000 + 1500); };
     a.onended = () => finish(a.duration);
     a.onerror = () => finish(0);
     a.play().catch(() => finish(0));

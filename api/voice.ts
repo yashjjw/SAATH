@@ -34,8 +34,37 @@ function explain(status: number, body: string): string {
   return `Gnani ${status} (${hint}): ${body.slice(0, 200)}`;
 }
 
+// Gnani streams WAV with 0xFFFFFFFF in the RIFF and data size fields. Browsers then report an
+// infinite duration and can't seek, so write the real sizes into the header.
+export function fixWav(buf: Buffer): Buffer {
+  if (buf.length < 44 || buf.toString("ascii", 0, 4) !== "RIFF" || buf.toString("ascii", 8, 12) !== "WAVE") return buf;
+  const out = Buffer.from(buf);
+  out.writeUInt32LE(out.length - 8, 4);
+  let off = 12;
+  while (off + 8 <= out.length) {
+    const id = out.toString("ascii", off, off + 4);
+    if (id === "data") { out.writeUInt32LE(out.length - off - 8, off + 4); break; }
+    off += 8 + out.readUInt32LE(off + 4);
+  }
+  return out;
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// Retry rate limits and transient 5xx with backoff (1.5s, 3s). Client errors (400/403) fail fast.
+async function withRetry(label: string, run: () => Promise<Response>): Promise<Response> {
+  let last: Response | undefined;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await sleep(attempt * 1500);
+    last = await run();
+    if (last.ok || ![429, 500, 502, 503, 504].includes(last.status)) return last;
+    console.warn(`gnani ${label} ${last.status}, attempt ${attempt + 1}/3`);
+  }
+  return last!;
+}
+
 async function tts(key: string, text: string, voice: string, language: string): Promise<Buffer> {
-  const r = await fetch(`${BASE}/api/v1/tts/inference`, {
+  const r = await withRetry("tts", () => fetch(`${BASE}/api/v1/tts/inference`, {
     method: "POST",
     headers: { "content-type": "application/json", "X-API-Key-ID": key },
     body: JSON.stringify({
@@ -43,17 +72,19 @@ async function tts(key: string, text: string, voice: string, language: string): 
       audio_config: { sample_rate: 24000, num_channels: 1, sample_width: 2, encoding: "linear_pcm", container: "wav" },
     }),
     signal: AbortSignal.timeout(30_000),
-  });
+  }));
   if (!r.ok) throw new GnaniError(r.status, explain(r.status, await r.text()));
-  return Buffer.from(await r.arrayBuffer());
+  return fixWav(Buffer.from(await r.arrayBuffer()));
 }
 
 async function stt(key: string, audio: Buffer, mime: string, language: string): Promise<string> {
-  const fd = new FormData();
-  fd.append("audio_file", new Blob([Uint8Array.from(audio)], { type: mime }), "audio.wav");
-  fd.append("language_code", language);
-  fd.append("format", "transcribe");
-  const r = await fetch(`${BASE}/stt/v3`, { method: "POST", headers: { "X-API-Key-ID": key }, body: fd, signal: AbortSignal.timeout(30_000) });
+  const r = await withRetry("stt", () => {
+    const fd = new FormData();   // rebuilt per attempt: a consumed body can't be resent
+    fd.append("audio_file", new Blob([Uint8Array.from(audio)], { type: mime }), "audio.wav");
+    fd.append("language_code", language);
+    fd.append("format", "transcribe");
+    return fetch(`${BASE}/stt/v3`, { method: "POST", headers: { "X-API-Key-ID": key }, body: fd, signal: AbortSignal.timeout(30_000) });
+  });
   if (!r.ok) throw new GnaniError(r.status, explain(r.status, await r.text()));
   const j = (await r.json()) as { transcript?: string };
   return (j.transcript ?? "").trim();
