@@ -132,6 +132,16 @@ At step 3's doctor buttons tap **Someone else**:
 
 ---
 
+### Voice notes and photos in the chat (Saath mode, and Patient mode)
+
+- **Voice note:** tap the 🎙 button (shown when the message box is empty), speak, then tap the green send button. 🗑 or Esc cancels. Gnani STT transcribes it and the transcript appears under a playable voice-note bubble. Saath then answers as if you had typed it. It works anywhere a typed message works, so you can say the phrases in the flow tables above ("I need to see a heart doctor. Please book a cardiologist appointment", "Next Friday", "Thank you"). Buttons still need a tap.
+- **Listen to a reply:** each Saath text bubble has a small 🔊. Tap it to hear that reply in a Gnani voice (the voice chosen on the call screen, default Kaveri). It is fetched on demand, so it costs one Gnani request per reply you play. Without a Gnani key it falls back to the browser's voice.
+- **Photo:** 📎 opens the gallery, 📷 the camera. A preview opens with a caption box; send it and the photo goes to the prescription reader. Use a made-up prescription only. Reading it needs `GEMINI_API_KEY`; without it Saath replies that it couldn't read the photo.
+- Voice notes need `CHAT_TEST_PASSWORD` and `GNANI_API_KEY`, and a microphone the browser can use (localhost or https).
+- Spoken English only for now (`en-IN`). Voice notes can be up to about 55 seconds.
+
+---
+
 ## 3. Patient mode: prescription reader
 
 Header button: **Patient**. Use a **made-up** prescription photo only.
@@ -172,6 +182,7 @@ Clinician-mode replies come from the model, so wording varies between runs. Pack
 | --- | --- |
 | Voice call script | `lib/callscript.ts` |
 | Voice call page / Gnani proxy | `public/voice.html`, `api/voice.ts` |
+| Recording and WAV helpers (shared) | `public/audio.js` |
 | Saath chat flow (all replies above) | `lib/saath.ts` |
 | Chat UI (transcript card, buttons, list) | `public/index.html` |
 | Clinician prompt and record | `prompts/clinic.md`, `lib/fixtures/clinic.ts` |
