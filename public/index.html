@@ -165,7 +165,7 @@ function askKey() {
   return key();
 }
 const hhmm = () => new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).replace(" AM", " am").replace(" PM", " pm");
-let lastTime = null;   // saath mode: the conversation clock, so unscripted bubbles never show the real time
+const dayLabel = () => { const n = new Date(); return `${n.toLocaleDateString("en-GB", { weekday: "long" })}, ${n.getDate()} ${n.toLocaleDateString("en-GB", { month: "short" })}`; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const esc = (s) => s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
 // WhatsApp-style *bold* and _italic_
@@ -183,8 +183,7 @@ function bubble(side, t, imgUrl, time, extra) {
   if (imgUrl) { const p = document.createElement("div"); p.className = "photo"; const i = document.createElement("img"); i.src = imgUrl; p.appendChild(i); d.appendChild(p); }
   if (t) { const b = document.createElement("div"); b.className = "body"; b.innerHTML = fmt(t); d.appendChild(b); }
   const m = document.createElement("div"); m.className = "meta";
-  if (time) lastTime = time;
-  m.innerHTML = `<span>${time || (mode === "saath" && lastTime) || hhmm()}</span>` + (side === "out" ? `<span class="tk">${TICK1}</span>` : "");
+  m.innerHTML = `<span>${time || hhmm()}</span>` + (side === "out" ? `<span class="tk">${TICK1}</span>` : "");
   d.appendChild(m);
   log.appendChild(d); lastSide = side; scroll();
   return d;
@@ -237,13 +236,12 @@ const LABEL = { saath: "Saath", patient: "Patient", clinic: "Clinic" };
 const NAME = { saath: "Saath", patient: "SAATH", clinic: "SAATH Clinic" };
 const INITIAL = { saath: "S", patient: "S", clinic: "C" };
 function initThread() {
-  log.innerHTML = ""; lastSide = null; history = []; demo = null; lastTime = null;
+  log.innerHTML = ""; lastSide = null; history = []; demo = null;
   document.body.classList.toggle("clinic", mode === "clinic");
   $("mode").textContent = LABEL[mode];
   document.querySelector(".who b").textContent = NAME[mode];
   document.querySelector(".avatar").textContent = INITIAL[mode];
-  const dayText = mode === "saath" ? "Sunday, 4 Oct" : new Date().toLocaleDateString([], { weekday: "long", day: "numeric", month: "short" });
-  const d = document.createElement("div"); d.className = "day"; d.textContent = dayText; log.appendChild(d);
+  const d = document.createElement("div"); d.className = "day"; d.textContent = dayLabel(); log.appendChild(d);
 }
 $("mode").onclick = () => {
   if (busy) return;
@@ -325,7 +323,7 @@ async function renderScript(msgs) {
   for (let i = 0; i < msgs.length; i++) {
     const m = msgs[i];
     const prev = msgs[i - 1];
-    const quiet = prev && (prev.kind === "day" || prev.kind === "system");
+    const quiet = prev && prev.kind === "system";
     if (m.kind === "text" || m.kind === "card") {
       if (!quiet) { setStatus("typing…"); const d = typingDots(); await sleep(typingMs(m)); d.remove(); setStatus("online"); }
       bubble("in", m.text, null, m.time, m.kind === "card" ? "card" : "");
@@ -333,7 +331,6 @@ async function renderScript(msgs) {
       setStatus("typing…"); const d = typingDots(); await sleep(rnd(900, 1800)); d.remove(); setStatus("online");
       renderTranscript(m);
     } else if (m.kind === "system") system(m.text);
-    else if (m.kind === "day") { const d = document.createElement("div"); d.className = "day"; d.textContent = m.text; log.appendChild(d); lastSide = null; scroll(); await sleep(rnd(700, 1400)); }
     else if (m.kind === "buttons") { await sleep(rnd(300, 800)); chips(m.options); }
     else if (m.kind === "list") { await sleep(rnd(300, 800)); chips([], m); }
   }
@@ -344,18 +341,16 @@ async function send(t, img, id) {
   if (!key() && !askKey()) return;
   busy = true;
   clearChips();
-  const scripted = mode === "saath" && !img;
-  const silent = id === "skip";   // demo control: jump ahead without a user bubble
-  const mine = silent ? null : bubble("out", t, img && img.url);
-  if (mine) { await sleep(250); setTicks(mine, 2); }
-  if (!scripted || !silent) setStatus("typing…");
+  const mine = bubble("out", t, img && img.url);
+  await sleep(250); setTicks(mine, 2);
+  setStatus("typing…");
   const dots = typingDots();
   let data;
   try {
     const r = await fetch("/api/chat", {
       method: "POST",
       headers: { "content-type": "application/json", "x-test-key": key() },
-      body: JSON.stringify({ text: t, id, mode, state: demo, history: mode === "clinic" ? history : [], image: img && { base64: img.base64, mime: img.mime } }),
+      body: JSON.stringify({ text: t, id, mode, state: demo, now: Date.now(), tz: Intl.DateTimeFormat().resolvedOptions().timeZone, history: mode === "clinic" ? history : [], image: img && { base64: img.base64, mime: img.mime } }),
     });
     dots.remove(); setStatus("online");
     if (r.status === 401) { sessionStorage.removeItem("saath_key"); busy = false; return system("Wrong password. Tap ⋮ to enter it again."); }
@@ -365,11 +360,9 @@ async function send(t, img, id) {
     dots.remove(); setStatus("online"); busy = false;
     return system("Request failed: " + err.message);
   }
-  if (mine) setTicks(mine, 3);
+  setTicks(mine, 3);
   if (data.messages) {
     demo = data.state;
-    if (data.userTime) lastTime = data.userTime;
-    if (mine) mine.querySelector(".meta span").textContent = data.userTime || lastTime || hhmm();
     await renderScript(data.messages);
     busy = false;
     return;

@@ -164,7 +164,7 @@ const hint = (t) => { $("hint").textContent = t || ""; };
 // ---- call state ----------------------------------------------------------------------------
 let run = 0;             // bumped to cancel the call
 let engine = "gnani";    // "gnani" | "browser" (fallback: browser voice for Saath, typed input only)
-let lines = [], idx = 0, cache = {};   // the script, the current position, prefetched Saath audio
+let lines = [], idx = 0, cache = {}, outcome = null;   // the script, the current position, prefetched Saath audio
 let audioEl = null, timer = null, t0 = 0;
 
 function setSpeaking(who) {
@@ -373,13 +373,13 @@ async function startCall() {
   $("mid").classList.add("ring"); $("time").textContent = "0:00"; $("status").textContent = "Calling…";
   if (!key() && !askKey()) return endCall(me, "No password set.");
   let call;
-  try { call = await api({ action: "script" }); }
+  try { call = await api({ action: "script", now: Date.now(), tz: Intl.DateTimeFormat().resolvedOptions().timeZone }); }
   catch (e) {
     if (e.status === 401) { try { sessionStorage.removeItem("saath_key"); } catch {} return endCall(me, "Wrong password. Tap Password to retry."); }
     if (e.status === 404) return endCall(me, "Voice tester is off: set CHAT_TEST_PASSWORD and redeploy.");
     return endCall(me, "Could not start: " + e.message);
   }
-  lines = call.lines;
+  lines = call.lines; outcome = call.outcome;
   engine = call.gnani ? "gnani" : "browser";
   $("engine").textContent = engine === "gnani" ? "Gnani Timbre (TTS) + Prisma (STT)" : "Browser voice (fallback)";
   if (engine === "browser") banner("GNANI_API_KEY isn't set on the server: Saath speaks in your browser's voice and there is no speech-to-text, so type your replies. Add the key to use Gnani.");
@@ -399,7 +399,7 @@ function finishCall(me) {
   sys("Call ended · " + mmss((Date.now() - t0) / 1000));
   setBtnAgain();
   const d = document.createElement("div"); d.className = "summary";
-  d.innerHTML = `<h4>✅ Appointment confirmed</h4><div><b>Doctor</b>Dr. Meera Kulkarni</div><div><b>Date</b>6 Oct</div><div><b>Time</b>11:30 am</div><div><b>Fee</b>₹800</div><div><b>Bring</b>old reports</div>`;
+  d.innerHTML = `<h4>✅ Appointment confirmed</h4>${["Doctor|doctor", "Date|date", "Time|time", "Fee|fee", "Bring|bring"].map((r) => { const [k, f] = r.split("|"); return outcome && outcome[f] ? `<div><b>${k}</b>${esc(outcome[f])}</div>` : ""; }).join("")}`;
   log.appendChild(d); scroll();
 }
 function setBtnAgain() { $("go").textContent = "↺ Call again"; $("go").classList.remove("end"); setSpeaking(null); }

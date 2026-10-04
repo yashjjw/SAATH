@@ -1,7 +1,10 @@
-// Scripted "Book an appointment" demo for Saath (Ramesh Sharma, Indore). Fully deterministic:
-// no model call, no real booking, no real phone call. Every name, clinic, fee and time is
-// fictional mock data from the Feature 1 design doc. Channel-neutral: the web chat renders the
-// buttons/list/cards; a plain-text channel would degrade them to numbered options.
+// Scripted "Book an appointment" flow for Saath (Ramesh Sharma, Indore). Fully deterministic:
+// no model call, no real booking, no real phone call. Names, clinics and fees are fictional mock
+// data from the Feature 1 design doc. Dates and times come from the caller's real clock
+// (input.now / input.tz); nothing here carries a fixed timestamp. Channel-neutral: the web chat
+// renders the buttons/list/cards; a plain-text channel would degrade them to numbered options.
+import { makeClock, type Clock } from "./clock.js";
+import { callLines, CALL_META } from "./callscript.js";
 
 export type Step =
   | "menu" | "reason" | "doctor" | "other_query" | "other_pick" | "when" | "date" | "daypart"
@@ -10,23 +13,21 @@ export type Step =
 export interface DemoState { step: Step; date?: string }
 export interface Opt { id: string; label: string }
 export type Msg =
-  | { kind: "text"; text: string; time?: string }
-  | { kind: "card"; text: string; time?: string }
+  | { kind: "text"; text: string }
+  | { kind: "card"; text: string }
   | { kind: "system"; text: string }
-  | { kind: "day"; text: string }
-  | { kind: "transcript"; clinic: string; lines: { who: "Saath" | "Clinic"; t: number; text: string }[]; duration: string; time?: string }
+  | { kind: "transcript"; clinic: string; lines: { who: "Saath" | "Clinic"; t: number; text: string }[]; duration: string }
   | { kind: "buttons"; options: Opt[] }
   | { kind: "list"; button: string; title: string; items: { id: string; title: string; desc: string }[] };
 
 export interface DemoResult {
   state: DemoState;
-  userTime?: string;  // timestamp shown on the user's bubble, as in the script
-  silent?: boolean;   // true = a demo control, so no user bubble
   messages: Msg[];
 }
-export interface DemoInput { id?: string; text?: string }
+export interface DemoInput { id?: string; text?: string; now?: number; tz?: string }
 
-const t = (text: string, time?: string): Msg => ({ kind: "text", text, time });
+const t = (text: string): Msg => ({ kind: "text", text });
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 const MENU: Msg = {
   kind: "list",
@@ -58,24 +59,11 @@ const BACK: Msg = { kind: "buttons", options: [{ id: "back_docs", label: "Back t
 
 const DOCTOR_CARD: Msg = {
   kind: "card",
-  time: "7:45 pm",
   text:
     "🩺 *Your previous cardiologists*\n\n" +
     "*1. Dr. Meera Kulkarni*\nHeartcare Clinic, Vijay Nagar\nLast seen: 14 Mar 2026 · 3 visits\nPrescribed: Amlodipine 5 mg\n\n" +
     "*2. Dr. Anil Joshi*\nCity Heart Centre, Palasia\nLast seen: Nov 2023 · 1 visit",
 };
-
-// Timestamps (seconds into the call) drive the live timer and the transcript's [m:ss] labels.
-const CALL_LINES: { who: "Saath" | "Clinic"; t: number; text: string }[] = [
-  { who: "Saath", t: 4, text: "Hello, this is Saath, an AI assistant. I'm calling on behalf of Mr. Ramesh Sharma. Could I book an appointment with Dr. Kulkarni? He has visited your clinic before." },
-  { who: "Clinic", t: 14, text: "Yes, which day would you like?" },
-  { who: "Saath", t: 19, text: "The earliest morning slot you have." },
-  { who: "Clinic", t: 27, text: "Tomorrow at 11:30 am is free." },
-  { who: "Saath", t: 36, text: "That works. 6 October, 11:30 am, under the name Ramesh Sharma. What are the fees, and should he bring any reports?" },
-  { who: "Clinic", t: 52, text: "The fee is 800 rupees. Please bring his old reports." },
-  { who: "Saath", t: 66, text: "Thank you. I'll send him the confirmation." },
-  { who: "Clinic", t: 75, text: "Okay, thank you." },
-];
 
 const GREETING = /^\s*(hi+|hello+|hey+|namaste|hola)\b/i;
 const has = (i: DemoInput, id: string, re?: RegExp) => i.id === id || (!!re && !i.id && re.test(i.text ?? ""));
@@ -83,8 +71,7 @@ const has = (i: DemoInput, id: string, re?: RegExp) => i.id === id || (!!re && !
 function greet(): DemoResult {
   return {
     state: { step: "menu" },
-    userTime: "7:42 pm",
-    messages: [t("Hello Ramesh 🙏 I'm Saath, your health assistant.\nHere is what I can help you with. Please choose one 👇", "7:42 pm"), MENU],
+    messages: [t("Hello Ramesh 🙏 I'm Saath, your health assistant.\nHere is what I can help you with. Please choose one 👇"), MENU],
   };
 }
 
@@ -106,23 +93,20 @@ function reprompt(s: DemoState, lead: string): DemoResult {
   return { state: s, messages: [t(lead), ...by[s.step]] };
 }
 
-// The chat shows only the outcome of the call: a note, the finished transcript and the confirmation.
-// The call itself is on the voice screen. It is placed on Monday morning so that "tomorrow at 11:30"
-// in the transcript is Tuesday 6 Oct, matching the confirmation card.
-function bookingFlow(): Msg[] {
+// The chat shows only the outcome of the call: a note, the finished transcript and the
+// confirmation. The live call is on the voice screen.
+function bookingFlow(c: Clock): Msg[] {
   return [
-    { kind: "day", text: "Monday, 5 Oct" },
-    { kind: "system", text: "Saath called Heartcare Clinic · 10:04 am (1 min 24 sec)" },
-    { kind: "transcript", clinic: "Heartcare Clinic, Vijay Nagar", lines: CALL_LINES, duration: "1:24", time: "10:05 am" },
-    t("Ramesh, your appointment is confirmed ✅", "10:06 am"),
+    { kind: "system", text: `Saath called Heartcare Clinic · ${c.nowTime} (1 min 24 sec)` },
+    { kind: "transcript", clinic: CALL_META.clinic, lines: callLines(c), duration: CALL_META.duration },
+    t("Ramesh, your appointment is confirmed ✅"),
     {
       kind: "card",
-      time: "10:06 am",
       text:
-        "📅 *Appointment confirmed*\n\n*Dr. Meera Kulkarni*, Cardiologist\n🗓 *Tuesday, 6 Oct · 11:30 am*\n" +
+        `📅 *Appointment confirmed*\n\n*Dr. Meera Kulkarni*, Cardiologist\n🗓 *${c.appt.label} · 11:30 am*\n` +
         "📍 Heartcare Clinic, Vijay Nagar\n💰 Fees: ₹800 (payable at the clinic)\n🧾 Please bring: old reports and your medicine list",
     },
-    t("What else can I do for you?\n\n🔔 Remind you tomorrow at 9:30 am?\n👨 Let Karan know?", "10:07 am"),
+    t(`What else can I do for you?\n\n🔔 Remind you ${c.appt.word} at 9:30 am?\n👨 Let Karan know?`),
     FOLLOW,
   ];
 }
@@ -130,14 +114,14 @@ function bookingFlow(): Msg[] {
 export function saathReply(state: DemoState | null | undefined, input: DemoInput): DemoResult {
   const text = (input.text ?? "").trim();
   if (input.id === "restart" || GREETING.test(text) || !state) return greet();
+  const clock = makeClock(input.now, input.tz);
 
   switch (state.step) {
     case "menu": {
       if (has(input, "menu_1", /^\s*1\b|book|appointment/i)) {
         return {
           state: { step: "reason" },
-          userTime: "7:43 pm",
-          messages: [t("Of course 👍 What is the appointment for?\nYou can type or send a voice note 🎤", "7:43 pm")],
+          messages: [t("Of course 👍 What is the appointment for?\nYou can type or send a voice note 🎤")],
         };
       }
       if (has(input, "menu_3", /^\s*3\b|prescription/i)) {
@@ -156,10 +140,9 @@ export function saathReply(state: DemoState | null | undefined, input: DemoInput
       if (/cardio|heart/i.test(text)) {
         return {
           state: { step: "doctor" },
-          userTime: "7:44 pm",
           messages: [
-            t("Got it ✅ A *cardiologist* appointment.\nOne moment, I'm checking your old prescriptions 🔍", "7:44 pm"),
-            t("I found these cardiologists in your old prescriptions. Which one would you like to see?", "7:45 pm"),
+            t("Got it ✅ A *cardiologist* appointment.\nOne moment, I'm checking your old prescriptions 🔍"),
+            t("I found these cardiologists in your old prescriptions. Which one would you like to see?"),
             DOCTOR_CARD,
             DOCTORS,
           ],
@@ -171,10 +154,9 @@ export function saathReply(state: DemoState | null | undefined, input: DemoInput
       if (has(input, "doc_1", /kulkarni|^\s*1\b/i)) {
         return {
           state: { step: "when" },
-          userTime: "7:46 pm",
           messages: [
-            t("Great 👍 *Dr. Meera Kulkarni*, Heartcare Clinic, Vijay Nagar.\nClinic hours: Mon to Sat, 10 am to 6 pm.", "7:46 pm"),
-            t("When would you like the appointment?", "7:46 pm"),
+            t("Great 👍 *Dr. Meera Kulkarni*, Heartcare Clinic, Vijay Nagar.\nClinic hours: Mon to Sat, 10 am to 6 pm."),
+            t("When would you like the appointment?"),
             WHEN,
           ],
         };
@@ -185,8 +167,7 @@ export function saathReply(state: DemoState | null | undefined, input: DemoInput
       if (has(input, "doc_other", /someone else|other/i)) {
         return {
           state: { step: "other_query" },
-          userTime: "7:46 pm",
-          messages: [t("Okay. Please tell me the doctor's name, or the area where you'd like to be seen.", "7:46 pm")],
+          messages: [t("Okay. Please tell me the doctor's name, or the area where you'd like to be seen.")],
         };
       }
       return reprompt(state, "Please tap one of the options below 👇");
@@ -195,12 +176,10 @@ export function saathReply(state: DemoState | null | undefined, input: DemoInput
       if (!text) return { state, messages: [] };
       return {
         state: { step: "other_pick" },
-        userTime: "7:47 pm",
         messages: [
-          t("I've looked. I found these 3 options:", "7:48 pm"),
+          t("I've looked. I found these 3 options:"),
           {
             kind: "card",
-            time: "7:48 pm",
             text:
               "🔍 *Cardiologists near Vijay Nagar (from the web, not from your records)*\n\n" +
               "*1. Dr. Neha Rao* · 4.7★ (180) · Aadarsh Hospital, Vijay Nagar\n" +
@@ -224,25 +203,22 @@ export function saathReply(state: DemoState | null | undefined, input: DemoInput
       if (has(input, "when_earliest", /earliest/i)) {
         return {
           state: { step: "daypart" },
-          userTime: "7:47 pm",
-          messages: [t("Understood. Would you prefer the morning or the evening?", "7:47 pm"), PARTS],
+          messages: [t("Understood. Would you prefer the morning or the evening?"), PARTS],
         };
       }
       if (has(input, "when_another", /another|date/i)) {
         return {
           state: { step: "date" },
-          userTime: "7:47 pm",
-          messages: [t("Sure. Which day would you like? You can type something like \"next Wednesday\" or \"15 October\".", "7:47 pm")],
+          messages: [t("Sure. Which day would you like? You can type something like \"next Wednesday\" or \"15 October\".")],
         };
       }
       return reprompt(state, "Please tap one of the options below 👇");
 
     case "date":
-      if (/fri|\b9\b/i.test(text)) {
+      if (/fri/i.test(text)) {
         return {
-          state: { step: "daypart", date: "Friday, 9 Oct" },
-          userTime: "7:48 pm",
-          messages: [t("*Friday, 9 Oct.* Morning or evening?", "7:48 pm"), PARTS],
+          state: { step: "daypart", date: clock.nextFriday.label },
+          messages: [t(`*${clock.nextFriday.label}.* Morning or evening?`), PARTS],
         };
       }
       return { state, messages: [t("Sorry, I couldn't tell which day you mean. You can type something like \"next Friday\".")] };
@@ -254,14 +230,13 @@ export function saathReply(state: DemoState | null | undefined, input: DemoInput
         const slot = part === "either" ? "slot" : `${part} slot`;
         return {
           state: { step: "end" },
-          userTime: "7:48 pm",
           messages: [
-            t(`Understood. Tomorrow at 10 am I'll call the clinic and ask for ${part === "either" ? "a" : "an"} *${slot} on ${state.date}*.\nIf that day is full, I'll ask you which day or time works instead. I won't book a different day on my own.`, "7:49 pm"),
+            t(`Understood. ${cap(clock.appt.word)} at 10 am I'll call the clinic and ask for ${part === "either" ? "a" : "an"} *${slot} on ${state.date}*.\nIf that day is full, I'll ask you which day or time works instead. I won't book a different day on my own.`),
           ],
         };
       }
       if (part === "morning") {
-        return { state: { step: "followup" }, userTime: "7:48 pm", messages: bookingFlow() };
+        return { state: { step: "followup" }, messages: bookingFlow(clock) };
       }
       return reprompt(state, "The earliest slot I can ask for is in the morning. Would you like a morning slot?");
     }
@@ -270,31 +245,28 @@ export function saathReply(state: DemoState | null | undefined, input: DemoInput
       if (has(input, "both", /both/i)) {
         return {
           state: { step: "done" },
-          userTime: "10:15 am",
           messages: [
-            t("Done ✅\n🔔 I'll remind you tomorrow at 9:30 am and send the route to the clinic.\n👨 I've messaged Karan: \"Papa has an appointment with Dr. Kulkarni tomorrow at 11:30 am.\"", "10:15 am"),
+            t(`Done ✅\n🔔 I'll remind you ${clock.appt.word} at 9:30 am and send the route to the clinic.\n👨 I've messaged Karan: "Papa has an appointment with Dr. Kulkarni ${clock.appt.word} at 11:30 am."`),
           ],
         };
       }
       if (has(input, "remind", /remind/i)) {
         return {
           state: { step: "done" },
-          userTime: "10:15 am",
-          messages: [t("Done ✅\n🔔 I'll remind you tomorrow at 9:30 am and send the route to the clinic.", "10:15 am")],
+          messages: [t(`Done ✅\n🔔 I'll remind you ${clock.appt.word} at 9:30 am and send the route to the clinic.`)],
         };
       }
       if (has(input, "none", /no thanks|^no\b/i)) {
         return {
           state: { step: "done" },
-          userTime: "10:15 am",
-          messages: [t("No problem 🙏 I'm here whenever you need me.", "10:15 am")],
+          messages: [t("No problem 🙏 I'm here whenever you need me.")],
         };
       }
       return reprompt(state, "Please tap one of the options below 👇");
 
     case "done":
       if (/thank/i.test(text)) {
-        return { state: { step: "end" }, userTime: "10:16 am", messages: [t("You're welcome, Ramesh 🙏", "10:16 am")] };
+        return { state: { step: "end" }, messages: [t("You're welcome, Ramesh 🙏")] };
       }
       return reprompt(state, "Is there anything else I can help you with?");
 

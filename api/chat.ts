@@ -16,19 +16,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: "wrong password" });
   }
 
-  const { text = "", image, mode = "patient", history = [], state = null, id } = (req.body ?? {}) as {
+  const { text = "", image, mode = "patient", history = [], state = null, id, now, tz } = (req.body ?? {}) as {
     text?: string;
     image?: { base64: string; mime: string };
     mode?: "saath" | "patient" | "clinic";
     history?: ChatTurn[];
     state?: DemoState | null;
     id?: string;
+    now?: number;
+    tz?: string;
   };
   const caption = String(text).trim();
 
   try {
     // Scripted demo: deterministic, no model call. A photo falls through to the real reader below.
-    if (mode === "saath" && !image) return res.json(saathReply(state, { id, text: caption }));
+    if (mode === "saath" && !image) return res.json(saathReply(state, { id, text: caption, now, tz }));
 
     if (mode === "clinic") {
       if (image) return res.json({ replies: ["Clinic mode is text only for now. Switch to Patient mode to read a prescription photo."] });

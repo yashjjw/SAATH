@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { passwordOk } from "../lib/auth.js";
-import { CALL } from "../lib/callscript.js";
+import { CALL_META, callLines, outcome } from "../lib/callscript.js";
+import { makeClock } from "../lib/clock.js";
 
 // Gnani (Vachana) speech proxy for the voice-call simulation. The API key stays server-side.
 //   TTS  POST {BASE}/api/v1/tts/inference   JSON in, binary audio out   (Timbre v2.5)
@@ -83,7 +84,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const body = (req.body ?? {}) as Record<string, any>;
   const key = process.env.GNANI_API_KEY;
 
-  if (body.action === "script") return res.json({ ...CALL, gnani: !!key });
+  if (body.action === "script") {
+    const clock = makeClock(typeof body.now === "number" ? body.now : undefined, typeof body.tz === "string" ? body.tz : undefined);
+    return res.json({ ...CALL_META, lines: callLines(clock), outcome: outcome(clock), gnani: !!key });
+  }
 
   if (!key) return res.status(503).json({ error: "GNANI_API_KEY is not set" });
 
