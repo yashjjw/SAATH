@@ -3,6 +3,7 @@ import { passwordOk } from "../lib/auth.js";
 import { chatReply, extractPrescription, formatExtraction } from "../lib/agent.js";
 import { clinicReply } from "../lib/clinic.js";
 import { saathReply, type DemoState } from "../lib/saath.js";
+import { rxFromExtraction, type OrderEvent } from "../lib/order.js";
 import type { ChatTurn } from "../lib/model.js";
 
 // Test-only twin of api/whatsapp.ts: same agent functions, no Twilio. Disabled unless
@@ -16,7 +17,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: "wrong password" });
   }
 
-  const { text = "", image, mode = "patient", history = [], state = null, id, now, tz } = (req.body ?? {}) as {
+  const { text = "", image, mode = "patient", history = [], state = null, id, now, tz, event } = (req.body ?? {}) as {
     text?: string;
     image?: { base64: string; mime: string };
     mode?: "saath" | "patient" | "clinic";
@@ -25,12 +26,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     id?: string;
     now?: number;
     tz?: string;
+    event?: OrderEvent;
   };
   const caption = String(text).trim();
 
   try {
     // Scripted demo: deterministic, no model call. A photo falls through to the real reader below.
-    if (mode === "saath" && !image) return res.json(saathReply(state, { id, text: caption, now, tz }));
+    if (mode === "saath" && !image) return res.json(saathReply(state, { id, text: caption, now, tz, event }));
+
+    // A prescription photo in Saath mode: the real reader, then the order workflow (lib/order.ts).
+    if (mode === "saath" && image) {
+      const busy = ["po_wait", "po_decide", "link_wait", "pay_wait", "pay_retry", "ship_wait"];
+      if (state && busy.includes(state.step)) {
+        return res.json({ state, messages: [{ kind: "text", text: "Let's finish your current order first 🙏 I'll be ready for the next prescription right after." }] });
+      }
+      if (!IMG_MIME.test(image.mime)) {
+        return res.json({ state, messages: [{ kind: "text", text: "I can read photos for now (JPG or PNG)." }] });
+      }
+      try {
+        return res.json(rxFromExtraction(state, await extractPrescription(image.base64, image.mime as any, caption)));
+      } catch (err) {
+        console.error("prescription read failed", err instanceof Error ? err.message : err);
+        return res.json(rxFromExtraction(state, null));
+      }
+    }
 
     if (mode === "clinic") {
       if (image) return res.json({ replies: ["Clinic mode is text only for now. Switch to Patient mode to read a prescription photo."] });

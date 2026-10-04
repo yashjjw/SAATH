@@ -12,6 +12,7 @@ const EXTRACT_SCHEMA = {
     doctor_or_clinic: str,
     date_on_document: str,
     overall_note: str,
+    tests: { type: "ARRAY", items: { type: "STRING" } },
     lines: {
       type: "ARRAY",
       items: {
@@ -99,7 +100,7 @@ export const geminiModel: Model = {
           role: "user",
           parts: [
             { inlineData: { mimeType: mime, data: imageBase64 } },
-            { text: `Extract the medication lines from this image. Record only what is literally legible; mark anything unreadable or ambiguous as UNCLEAR with a reason.${caption ? ` User note: ${caption}` : ""}` },
+            { text: `Extract the medication lines from this image. Record only what is literally legible; mark anything unreadable or ambiguous as UNCLEAR with a reason. Also list any laboratory or diagnostic tests the document advises, each exactly as written, in the tests field (empty array if none).${caption ? ` User note: ${caption}` : ""}` },
           ],
         },
       ],

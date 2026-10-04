@@ -19,6 +19,7 @@ export interface PrescriptionExtraction {
   date_on_document: string | null;
   lines: MedicationLine[];
   overall_note: string | null;
+  tests?: string[];             // lab / diagnostic tests advised, exactly as written
 }
 
 export const EXTRACT_TOOL = {
@@ -32,6 +33,7 @@ export const EXTRACT_TOOL = {
       doctor_or_clinic: { type: ["string", "null"] },
       date_on_document: { type: ["string", "null"] },
       overall_note: { type: ["string", "null"] },
+      tests: { type: "array", items: { type: "string" }, description: "Laboratory or diagnostic tests advised on the document, each exactly as written. Empty if none." },
       lines: {
         type: "array",
         items: {

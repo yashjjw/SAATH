@@ -5,12 +5,15 @@
 // renders the buttons/list/cards; a plain-text channel would degrade them to numbered options.
 import { makeClock, type Clock } from "./clock.js";
 import { callLines, CALL_META } from "./callscript.js";
+import { orderText, orderEvent, type RxData, type OrderData, type DeskUpdate, type OrderEvent } from "./order.js";
 
 export type Step =
   | "menu" | "reason" | "doctor" | "other_query" | "other_pick" | "when" | "date" | "daypart"
-  | "followup" | "done" | "end";
+  | "followup" | "done" | "end"
+  // prescription -> order -> payment -> delivery (lib/order.ts)
+  | "rx_wait" | "rx_offer" | "po_wait" | "po_decide" | "link_wait" | "pay_wait" | "pay_retry" | "ship_wait" | "delivered";
 
-export interface DemoState { step: Step; date?: string }
+export interface DemoState { step: Step; date?: string; rx?: RxData; order?: OrderData }
 export interface Opt { id: string; label: string }
 export type Msg =
   | { kind: "text"; text: string }
@@ -23,8 +26,9 @@ export type Msg =
 export interface DemoResult {
   state: DemoState;
   messages: Msg[];
+  desk?: DeskUpdate;   // what the "Backend input" panel should show (requests made, whether input was accepted)
 }
-export interface DemoInput { id?: string; text?: string; now?: number; tz?: string }
+export interface DemoInput { id?: string; text?: string; now?: number; tz?: string; event?: OrderEvent }
 
 const t = (text: string): Msg => ({ kind: "text", text });
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -89,6 +93,7 @@ function reprompt(s: DemoState, lead: string): DemoResult {
     followup: [FOLLOW],
     done: [MENU],
     end: [MENU],
+    rx_wait: [], rx_offer: [], po_wait: [], po_decide: [], link_wait: [], pay_wait: [], pay_retry: [], ship_wait: [], delivered: [],
   };
   return { state: s, messages: [t(lead), ...by[s.step]] };
 }
@@ -113,8 +118,16 @@ function bookingFlow(c: Clock): Msg[] {
 
 export function saathReply(state: DemoState | null | undefined, input: DemoInput): DemoResult {
   const text = (input.text ?? "").trim();
-  if (input.id === "restart" || GREETING.test(text) || !state) return greet();
   const clock = makeClock(input.now, input.tz);
+  const now = typeof input.now === "number" && Number.isFinite(input.now) ? input.now : Date.now();
+  // Something arrived from the outside world (pharmacy, Pine Labs, Delhivery): apply it, never chat.
+  if (input.event) return orderEvent(state ?? null, input.event, clock, now);
+  if (input.id === "restart" || GREETING.test(text) || !state) return greet();
+  // Steps of the prescription -> order -> delivery workflow have their own handling.
+  if (state.rx || state.step.startsWith("rx_") || ["po_wait", "po_decide", "link_wait", "pay_wait", "pay_retry", "ship_wait", "delivered"].includes(state.step)) {
+    const r = orderText(state, input, clock, now);
+    if (r) return r;
+  }
 
   switch (state.step) {
     case "menu": {
@@ -126,7 +139,7 @@ export function saathReply(state: DemoState | null | undefined, input: DemoInput
       }
       if (has(input, "menu_3", /^\s*3\b|prescription/i)) {
         return {
-          state,
+          state: { step: "rx_wait" },
           messages: [t("Send me a photo of the prescription using 📎 and I'll read it for you.")],
         };
       }

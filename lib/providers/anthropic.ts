@@ -33,7 +33,7 @@ export const anthropicModel: Model = {
           role: "user",
           content: [
             { type: "image", source: { type: "base64", media_type: mime, data: imageBase64 } },
-            { type: "text", text: `Extract the medication lines from this image.${caption ? ` User note: ${caption}` : ""}` },
+            { type: "text", text: `Extract the medication lines from this image, and any laboratory or diagnostic tests it advises (exactly as written) into the tests field.${caption ? ` User note: ${caption}` : ""}` },
           ],
         },
       ],

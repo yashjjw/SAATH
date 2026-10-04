@@ -176,6 +176,55 @@ Clinician-mode replies come from the model, so wording varies between runs. Pack
 
 ---
 
+## 5. Prescription → order → payment → delivery (Backend input)
+
+Saath mode. The agent reads the real photo and decides what to say and which request to make. The outside world (pharmacy, Pine Labs, Delhivery) is **you**, pasting what each source would send into the **Backend input** panel on the right (🧾 in the header toggles it; open by default on wide screens, a slide-over on a phone). The agent only knows what you paste. Reading the photo needs `GEMINI_API_KEY`.
+
+**Real vs simulated**
+
+| Piece | Real or simulated | Source |
+| --- | --- | --- |
+| Photo, summary, offer, every decision after each event | **Real** (the agent) | the model + `lib/order.ts` |
+| Pine Labs create-link request and the documented 201 response and `payment_link.processed` webhook | Simulated, documented shapes | the plan's Pine Labs section |
+| Other Pine Labs events (failed, expired, opened) | Simulated, **illustrative shapes** | follow the processed example; names marked "illustrative" in the panel |
+| Delhivery tracking | Simulated; **JSON shape unverified** | status names only (Pending → Delivered). Paste a real response from the Delhivery developer portal, or just type a status |
+| Pharmacy | Simulated; **no documentation exists** | the order goes out as a message, and you paste the reply as received |
+| `amount.value` unit | **Assumed paise** (₹528 = 52800) | confirm in Pine Labs' API reference |
+
+**Run order**
+
+| # | You do | The agent does |
+| --- | --- | --- |
+| 1 | Menu → 💊 Upload a prescription, or just attach a photo with 📎 | Reads it. Lists the medicines (3 for the sample prescription) and the tests advised (9), flags any line it can't read and **leaves it out of the order**, then offers: **[Yes, order them] [Not now]** |
+| 2 | Tap **Yes, order them** | "Placing your order with Sunrise Pharmacy…". Backend input shows the order request (as a message) |
+| 3 | Paste the pharmacy's reply in **Pharmacy → agent**, e.g. `Order confirmed. Total ₹528. Delivery in 2 days.` | Reads the total, tells Ramesh, and shows the **Create payment link** request to Pine Labs (documented endpoint and fields, masked token) |
+| 4 | In **Pine Labs → agent** click **Create-link response (documented 201)** and Send | Sends Ramesh the payment link and keeps waiting |
+| 5 | Click **Payment processed (documented webhook)** and Send | Checks the event against the order (link id, reference, amount). If it matches: "Payment received ✅", and a dispatch request to the pharmacy appears |
+| 6 | In **Delhivery → agent** paste a status or tracking JSON: `Pending`, `Ready for Pickup`, `In Transit`, `Out for Delivery`, `Delivered` | Tells Ramesh at each stage. On Delivered it asks him to check the pack against the prescription |
+
+Every box shows a ✓ or ✗ with how the agent read what you sent, so the audience can see why it acted or didn't.
+
+**Failure injections (the agent must handle each on its own)**
+
+| Inject | Paste | Expected |
+| --- | --- | --- |
+| Item out of stock | Pharmacy: `Pan-D 40 is out of stock this week` | Tells Ramesh, offers to cancel, **does not substitute** |
+| Pharmacy confirms with no total | Pharmacy: `Order confirmed` | Waits for an amount; no payment link |
+| Pine Labs error | Pine Labs: `{"error":"UNAUTHORIZED"}` | "I couldn't create the payment link", offers **Try again** (new reference) |
+| Link for the wrong amount | Create-link response with a different `amount.value` | Not forwarded to Ramesh |
+| "I paid" with no webhook | Ramesh types `I paid` | Refuses to count it; only the gateway's event counts |
+| Event for another order | Webhook with a different `payment_link_id` | Ignored (✗ "Doesn't match this order") |
+| Event with the wrong amount | Processed webhook with a different `amount.value` | **Not** treated as paid |
+| Payment failed | Click **Payment failed (illustrative)** | Says so, offers **Send a new link** |
+| Link expired | Click **Link expired (illustrative)** | Says so, offers a new link, places nothing |
+| Wrong source for the moment | Delhivery event before payment | ✗ "Not expected right now" |
+| Delivery problem | Delhivery: `RTO Initiated`, `Undelivered`, `Lost`, `Cancelled` | Flags the problem, takes **no action**, won't reorder without Ramesh |
+| Replayed event | Send the processed webhook twice | The second is ignored |
+
+**Operator rules** (from the plan): paste only what the source's documentation, or a real recorded response, would send; never tell the agent what to do next; don't hint through timing; keep a note of where each pasted message came from.
+
+---
+
 ## Where things live
 
 | What | File |
@@ -186,3 +235,5 @@ Clinician-mode replies come from the model, so wording varies between runs. Pack
 | Saath chat flow (all replies above) | `lib/saath.ts` |
 | Chat UI (transcript card, buttons, list) | `public/index.html` |
 | Clinician prompt and record | `prompts/clinic.md`, `lib/fixtures/clinic.ts` |
+| Prescription → order workflow | `lib/order.ts` (logic), `api/chat.ts` (photo + events), Backend input panel in `public/index.html` |
+| Date and clock logic | `lib/clock.ts` |

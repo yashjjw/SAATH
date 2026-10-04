@@ -45,6 +45,7 @@ export function normalizeExtraction(raw: unknown): PrescriptionExtraction {
     doctor_or_clinic: x.doctor_or_clinic ?? null,
     date_on_document: x.date_on_document ?? null,
     overall_note: x.overall_note ?? null,
+    tests: Array.isArray(x.tests) ? x.tests.filter((t): t is string => typeof t === "string" && t.trim() !== "").map((t) => t.trim()) : [],
     lines,
   };
 }

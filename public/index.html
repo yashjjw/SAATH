@@ -117,6 +117,27 @@
   .msg.voice .body { font-size: 13.5px; opacity: .85; }
   .spk { background: none; border: 0; cursor: pointer; font-size: 12px; opacity: .55; padding: 0 3px; }
   .spk:hover { opacity: 1; }
+  .msg a { color: #027eb5; word-break: break-all; }
+  #desk { position: fixed; top: 0; right: 0; bottom: 0; width: 400px; max-width: 100vw; background: var(--in); color: var(--text); border-left: 1px solid var(--shadow); box-shadow: -2px 0 8px var(--shadow); display: none; flex-direction: column; z-index: 15; font-size: 13px; }
+  html.desk-open #desk { display: flex; }
+  @media (min-width: 1120px) { html.desk-open body { margin-left: max(16px, calc((100vw - 400px - 640px) / 2)); margin-right: 0; } }
+  #desk .dh { padding: 12px 14px 8px; border-bottom: 1px solid var(--shadow); display: flex; align-items: flex-start; gap: 8px; }
+  #desk .dh div { flex: 1; } #desk .dh b { font-size: 15px; display: block; } #desk .dh span { color: var(--time); font-size: 12px; }
+  #desk .dh button { background: none; border: 0; color: var(--icon); font-size: 18px; cursor: pointer; }
+  #dlog { flex: 1; overflow-y: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+  #dlog .empty { color: var(--time); text-align: center; margin-top: 20px; }
+  .de { border-radius: 8px; padding: 8px 10px; border: 1px solid var(--shadow); background: var(--bar); }
+  .de.req { border-left: 3px solid #1fa855; } .de.res { border-left: 3px solid #027eb5; }
+  .de .dt { font-weight: 600; font-size: 12px; } .de .dm { color: var(--time); font-size: 11.5px; word-break: break-all; margin: 2px 0; }
+  .de pre { margin: 4px 0 0; white-space: pre-wrap; word-break: break-word; font: 11.5px/1.4 ui-monospace, Menlo, Consolas, monospace; max-height: 190px; overflow: auto; }
+  .de .dn { color: var(--time); font-size: 11.5px; font-style: italic; margin-top: 4px; }
+  .de .dr { margin-top: 5px; font-size: 12px; } .de .dr.ok { color: #1fa855; } .de .dr.bad { color: #d64545; } .de .dr.pend { color: var(--time); }
+  #desk .din { border-top: 1px solid var(--shadow); padding: 8px 12px 12px; display: flex; flex-direction: column; gap: 8px; max-height: 52%; overflow-y: auto; }
+  #desk section label { font-weight: 600; font-size: 12px; display: block; margin-bottom: 3px; }
+  #desk textarea { width: 100%; box-sizing: border-box; resize: vertical; min-height: 44px; max-height: 160px; border: 1px solid var(--shadow); border-radius: 8px; padding: 6px 8px; background: var(--field); color: var(--text); font: 12px/1.4 ui-monospace, Menlo, Consolas, monospace; }
+  #desk .drow { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 4px; }
+  #desk .drow button { border: 1px solid var(--shadow); background: var(--bar); color: var(--text); border-radius: 12px; padding: 3px 10px; font-size: 11.5px; cursor: pointer; }
+  #desk .drow .dsend { background: #00a884; color: #fff; border-color: #00a884; margin-left: auto; padding: 4px 14px; font-weight: 600; }
   #preview { position: fixed; inset: 0; background: #0b141a; z-index: 10; display: none; flex-direction: column; max-width: 640px; margin: 0 auto; }
   #preview.on { display: flex; }
   #preview .top { padding: calc(10px + env(safe-area-inset-top, 0px)) 12px 10px; }
@@ -133,6 +154,7 @@
   <button class="iconbtn" type="button" aria-label="Back"><svg width="24" height="24" viewBox="0 0 24 24"><path d="M12 4l1.4 1.4L7.8 11H20v2H7.8l5.6 5.6L12 20l-8-8z"/></svg></button>
   <div class="avatar">S</div>
   <div class="who"><b>Saath</b><small id="status">online</small></div>
+  <button class="iconbtn" id="deskbtn" type="button" title="Backend input" aria-label="Backend input" style="font-size:18px;padding:4px 8px">🧾</button>
   <a class="iconbtn" href="/voice.html" title="Voice call simulation" aria-label="Voice call simulation" style="text-decoration:none;color:inherit;font-size:18px;padding:4px 8px">📞</a>
   <button class="iconbtn" id="mode" type="button" aria-label="Switch mode" title="Switch Patient / Clinic" style="font-size:12px;font-weight:600;border:1px solid #ffffff66;border-radius:14px;padding:4px 10px">Saath</button>
   <button class="iconbtn" id="menu" type="button" aria-label="Set test password" title="Set test password"><svg width="24" height="24" viewBox="0 0 24 24"><path d="M12 7a2 2 0 100-4 2 2 0 000 4zm0 2a2 2 0 100 4 2 2 0 000-4zm0 6a2 2 0 100 4 2 2 0 000-4z"/></svg></button>
@@ -151,6 +173,16 @@
   <button id="go" type="submit" aria-label="Send"></button>
 </form>
 <input id="file" type="file" accept="image/*" hidden>
+
+<aside id="desk" aria-label="Backend input">
+  <div class="dh"><div><b>Backend input</b><span>API exchanges between the agent and Pharmacy, Pine Labs and Delhivery. What you paste below is what those services "send back".</span></div><button id="dclose" type="button" aria-label="Close">✕</button></div>
+  <div id="dlog"><div class="empty">Nothing yet. Requests the agent makes will appear here.</div></div>
+  <div class="din">
+    <section data-sys="pharmacy"><label>Pharmacy → agent</label><textarea placeholder="Paste the pharmacy's reply, as received"></textarea><div class="drow"><span class="dex"></span><button class="dsend" type="button">Send</button></div></section>
+    <section data-sys="pinelabs"><label>Pine Labs → agent</label><textarea placeholder="Paste the API response or webhook (JSON)"></textarea><div class="drow"><span class="dex"></span><button class="dsend" type="button">Send</button></div></section>
+    <section data-sys="delhivery"><label>Delhivery → agent</label><textarea placeholder="Paste the tracking response (JSON), or a status such as In Transit"></textarea><div class="drow"><span class="dex"></span><button class="dsend" type="button">Send</button></div></section>
+  </div>
+</aside>
 
 <div id="sheet"><div class="panel"><h3 id="sheettitle"></h3><div id="sheetitems"></div></div></div>
 
@@ -186,7 +218,7 @@ const dayLabel = () => { const n = new Date(); return `${n.toLocaleDateString("e
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const esc = (s) => s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
 // WhatsApp-style *bold* and _italic_
-const fmt = (s) => esc(s).replace(/\*([^*\n]+)\*/g, '<b class="wa">$1</b>').replace(/(^|[\s(])_([^_\n]+)_(?=$|[\s).,!?])/g, '$1<i class="wa">$2</i>');
+const fmt = (s) => esc(s).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>').replace(/\*([^*\n]+)\*/g, '<b class="wa">$1</b>').replace(/(^|[\s(])_([^_\n]+)_(?=$|[\s).,!?])/g, '$1<i class="wa">$2</i>');
 const scroll = () => { log.scrollTop = log.scrollHeight; };
 
 function system(t) {
@@ -258,6 +290,7 @@ const NAME = { saath: "Saath", patient: "SAATH", clinic: "SAATH Clinic" };
 const INITIAL = { saath: "S", patient: "S", clinic: "C" };
 function initThread() {
   if (rec && rec.state === "recording") stopVoice(false);
+  if (typeof deskReset === "function") deskReset();
   log.innerHTML = ""; lastSide = null; history = []; demo = null;
   document.body.classList.toggle("clinic", mode === "clinic");
   $("mode").textContent = LABEL[mode];
@@ -456,33 +489,96 @@ async function onVoiceStop() {
 }
 function send_(transcript, url, secs) { return send(transcript, null, undefined, { url, secs }); }
 
-async function send(t, img, id, voice) {
-  if (busy || (!t && !img && !id)) return;
+// ---- Backend input: the agent's API exchanges, and the replies you paste in ---------------------------
+const SYS = { pharmacy: "Pharmacy", pinelabs: "Pine Labs", delhivery: "Delhivery" };
+let deskPending = null;
+const dlog = $("dlog");
+function setDesk(open) { document.documentElement.classList.toggle("desk-open", open); try { localStorage.setItem("saath_desk", open ? "1" : "0"); } catch {} }
+$("deskbtn").onclick = () => setDesk(!document.documentElement.classList.contains("desk-open"));
+$("dclose").onclick = () => setDesk(false);
+(function () { let v = null; try { v = localStorage.getItem("saath_desk"); } catch {} setDesk(v === null ? window.innerWidth >= 1120 : v === "1"); })();
+
+function dEntry(cls) { dlog.querySelector(".empty")?.remove(); const d = document.createElement("div"); d.className = "de " + cls; dlog.appendChild(d); dlog.scrollTop = dlog.scrollHeight; return d; }
+function addRequest(c) {
+  const d = dEntry("req");
+  const t = document.createElement("div"); t.className = "dt"; t.textContent = `→ Agent → ${SYS[c.system] || c.system}: ${c.label}`; d.appendChild(t);
+  if (c.url) { const m = document.createElement("div"); m.className = "dm"; m.textContent = `${c.method || ""} ${c.url}`.trim(); d.appendChild(m); }
+  const pre = document.createElement("pre");
+  pre.textContent = c.text !== undefined ? c.text : JSON.stringify({ headers: c.headers, body: c.body }, null, 2);
+  d.appendChild(pre);
+  if (c.note) { const n = document.createElement("div"); n.className = "dn"; n.textContent = c.note; d.appendChild(n); }
+  dlog.scrollTop = dlog.scrollHeight;
+}
+function addInbound(system, raw) {
+  const d = dEntry("res");
+  const t = document.createElement("div"); t.className = "dt"; t.textContent = `← ${SYS[system]} → Agent`; d.appendChild(t);
+  const pre = document.createElement("pre"); pre.textContent = raw; d.appendChild(pre);
+  const r = document.createElement("div"); r.className = "dr pend"; r.textContent = "Sending…"; d.appendChild(r);
+  return r;
+}
+function setResult(r, ok, note) { r.className = "dr " + (ok ? "ok" : "bad"); r.textContent = (ok ? "✓ " : "✗ ") + note; }
+function setExamples(set) {
+  const box = document.querySelector(`#desk section[data-sys="${set.system}"] .dex`); if (!box) return;
+  box.innerHTML = "";
+  set.items.forEach((it) => {
+    const b = document.createElement("button"); b.type = "button"; b.textContent = it.label;
+    b.onclick = () => { const ta = box.closest("section").querySelector("textarea"); ta.value = JSON.stringify(it.json, null, 2); ta.focus(); };
+    box.appendChild(b);
+  });
+}
+function applyDesk(d) {
+  if (!d) return;
+  if (d.ack && deskPending) { setResult(deskPending, d.ack.ok, d.ack.note); deskPending = null; }
+  (d.requests || []).forEach(addRequest);
+  (d.examples || []).forEach(setExamples);
+}
+function deskReset() {
+  dlog.innerHTML = '<div class="empty">Nothing yet. Requests the agent makes will appear here.</div>';
+  document.querySelectorAll("#desk textarea").forEach((x) => { x.value = ""; });
+  document.querySelectorAll("#desk .dex").forEach((x) => { x.innerHTML = ""; });
+  deskPending = null;
+}
+async function sendEvent(system, raw) {
+  raw = raw.trim(); if (!raw) return;
+  if (busy) { const n = dEntry("res"); n.textContent = "The agent is busy. Try again in a moment."; return; }
+  deskPending = addInbound(system, raw);
+  await send("", null, undefined, undefined, { system, raw });
+  if (deskPending) { setResult(deskPending, false, "The agent didn't respond."); deskPending = null; }
+}
+document.querySelectorAll("#desk section").forEach((sec) => {
+  const ta = sec.querySelector("textarea");
+  sec.querySelector(".dsend").onclick = async () => { const v = ta.value; if (!v.trim()) return; ta.value = ""; await sendEvent(sec.dataset.sys, v); };
+});
+
+async function send(t, img, id, voice, event) {
+  if (busy || (!t && !img && !id && !event)) return;
   if (!key() && !askKey()) return;
   busy = true;
-  clearChips();
-  const mine = voice ? voiceBubble(voice.url, voice.secs, t) : bubble("out", t, img && img.url);
-  await sleep(250); setTicks(mine, 2);
-  setStatus("typing…");
-  const dots = typingDots();
+  if (!event) clearChips();
+  const mine = event ? null : voice ? voiceBubble(voice.url, voice.secs, t) : bubble("out", t, img && img.url);
+  if (mine) { await sleep(250); setTicks(mine, 2); }
+  if (!event) setStatus("typing…");
+  const dots = event ? null : typingDots();
   let data;
   try {
     const r = await fetch("/api/chat", {
       method: "POST",
       headers: { "content-type": "application/json", "x-test-key": key() },
-      body: JSON.stringify({ text: t, id, mode, state: demo, now: Date.now(), tz: Intl.DateTimeFormat().resolvedOptions().timeZone, history: mode === "clinic" ? history : [], image: img && { base64: img.base64, mime: img.mime } }),
+      body: JSON.stringify({ text: t, id, event, mode, state: demo, now: Date.now(), tz: Intl.DateTimeFormat().resolvedOptions().timeZone, history: mode === "clinic" ? history : [], image: img && { base64: img.base64, mime: img.mime } }),
     });
-    dots.remove(); setStatus("online");
+    if (dots) dots.remove(); setStatus("online");
     if (r.status === 401) { sessionStorage.removeItem("saath_key"); busy = false; return system("Wrong password. Tap ⋮ to enter it again."); }
     if (r.status === 404) { busy = false; return system("Chat tester is off: set CHAT_TEST_PASSWORD in Vercel and redeploy."); }
     data = await r.json();
   } catch (err) {
-    dots.remove(); setStatus("online"); busy = false;
+    if (dots) dots.remove(); setStatus("online"); busy = false;
     return system("Request failed: " + err.message);
   }
-  setTicks(mine, 3);
+  if (mine) setTicks(mine, 3);
   if (data.messages) {
     demo = data.state;
+    applyDesk(data.desk);
+    if (event && data.messages.length) clearChips();
     await renderScript(data.messages);
     busy = false;
     return;
