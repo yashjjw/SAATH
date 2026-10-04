@@ -178,13 +178,16 @@ Clinician-mode replies come from the model, so wording varies between runs. Pack
 
 ## 5. Prescription → order → payment → delivery (Backend input)
 
-Saath mode. The agent reads the real photo and decides what to say and which request to make. The outside world (pharmacy, Pine Labs, Delhivery) is **you**, pasting what each source would send into the **Backend input** panel on the right (🧾 in the header toggles it; open by default on wide screens, a slide-over on a phone). The agent only knows what you paste. Reading the photo needs `GEMINI_API_KEY`.
+Saath mode. The agent reads the real photo and decides what to say and which request to make. The outside world (pharmacy, Pine Labs, Delhivery) is **you**, pasting what each source would send into the **Backend input** panel on the right (🧾 in the header toggles it; open by default on wide screens, a slide-over on a phone). The agent only knows what you paste. **The prescription summary is scripted by default**: whatever photo you attach, Saath shows Ramesh's prescription from the plan, so no model or key is needed. Set `RX_READER=live` (and `GEMINI_API_KEY`) to have it read the actual photo instead.
+
+> **Edit the 9 tests.** Your plan says the prescription advises 9 tests but doesn't name them. The nine in `lib/fixtures/prescription.ts` (CBC, Lipid profile, Fasting blood sugar, HbA1c, Serum creatinine, Serum electrolytes, Liver function test, ECG, Thyroid profile) are **placeholders**. Replace them with the exact tests from your prescription.
 
 **Real vs simulated**
 
 | Piece | Real or simulated | Source |
 | --- | --- | --- |
-| Photo, summary, offer, every decision after each event | **Real** (the agent) | the model + `lib/order.ts` |
+| Reading the photo | **Scripted by default** (`RX_READER=live` reads the real photo with the model) | `lib/fixtures/prescription.ts` |
+| Offer, and every decision after each event | **Real** agent logic | `lib/order.ts` |
 | Pine Labs create-link request and the documented 201 response and `payment_link.processed` webhook | Simulated, documented shapes | the plan's Pine Labs section |
 | Other Pine Labs events (failed, expired, opened) | Simulated, **illustrative shapes** | follow the processed example; names marked "illustrative" in the panel |
 | Delhivery tracking | Simulated; **JSON shape unverified** | status names only (Pending → Delivered). Paste a real response from the Delhivery developer portal, or just type a status |
@@ -195,7 +198,7 @@ Saath mode. The agent reads the real photo and decides what to say and which req
 
 | # | You do | The agent does |
 | --- | --- | --- |
-| 1 | Menu → 💊 Upload a prescription, or just attach a photo with 📎 | Reads it. Lists the medicines (3 for the sample prescription) and the tests advised (9), flags any line it can't read and **leaves it out of the order**, then offers: **[Yes, order them] [Not now]** |
+| 1 | Menu → 💊 Upload a prescription, or just attach any photo with 📎 | "Got it, reading your prescription 🔍", then the summary: **1. Telma CT 40 — 1-0-0 · 2. Ecosprin AV 75 — 1-0-0 · 3. Pan-D 40 — 1-0-0**, and **Tests advised (9)**. Then the offer: **[Yes, order them] [Not now]**. (With `RX_READER=live`, any line it can't read is flagged and left out of the order.) |
 | 2 | Tap **Yes, order them** | "Placing your order with Sunrise Pharmacy…". Backend input shows the order request (as a message) |
 | 3 | Paste the pharmacy's reply in **Pharmacy → agent**, e.g. `Order confirmed. Total ₹528. Delivery in 2 days.` | Reads the total, tells Ramesh, and shows the **Create payment link** request to Pine Labs (documented endpoint and fields, masked token) |
 | 4 | In **Pine Labs → agent** click **Create-link response (documented 201)** and Send | Sends Ramesh the payment link and keeps waiting |
@@ -235,5 +238,6 @@ Every box shows a ✓ or ✗ with how the agent read what you sent, so the audie
 | Saath chat flow (all replies above) | `lib/saath.ts` |
 | Chat UI (transcript card, buttons, list) | `public/index.html` |
 | Clinician prompt and record | `prompts/clinic.md`, `lib/fixtures/clinic.ts` |
+| Scripted prescription (edit the tests here) | `lib/fixtures/prescription.ts` |
 | Prescription → order workflow | `lib/order.ts` (logic), `api/chat.ts` (photo + events), Backend input panel in `public/index.html` |
 | Date and clock logic | `lib/clock.ts` |

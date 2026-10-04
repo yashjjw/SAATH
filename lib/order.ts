@@ -101,7 +101,7 @@ export function rxFromExtraction(state: DemoState | null, ex: PrescriptionExtrac
   }
   return {
     state: { step: "rx_offer", rx },
-    messages: [t(parts.join("\n\n")), t(`Would you like me to order ${meds.length > 1 ? "these medicines" : "this medicine"} for you? 💊`), OFFER],
+    messages: [t("Got it, reading your prescription 🔍"), t(parts.join("\n\n")), t(`Would you like me to order ${meds.length > 1 ? "these medicines" : "this medicine"} for you? 💊`), OFFER],
   };
 }
 

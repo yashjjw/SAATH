@@ -4,6 +4,7 @@ import { chatReply, extractPrescription, formatExtraction } from "../lib/agent.j
 import { clinicReply } from "../lib/clinic.js";
 import { saathReply, type DemoState } from "../lib/saath.js";
 import { rxFromExtraction, type OrderEvent } from "../lib/order.js";
+import { SAMPLE_EXTRACTION } from "../lib/fixtures/prescription.js";
 import type { ChatTurn } from "../lib/model.js";
 
 // Test-only twin of api/whatsapp.ts: same agent functions, no Twilio. Disabled unless
@@ -43,6 +44,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!IMG_MIME.test(image.mime)) {
         return res.json({ state, messages: [{ kind: "text", text: "I can read photos for now (JPG or PNG)." }] });
       }
+      // Default: the scripted prescription from the plan (no model needed). RX_READER=live reads the
+      // uploaded photo with the model instead.
+      if (process.env.RX_READER !== "live") return res.json(rxFromExtraction(state, SAMPLE_EXTRACTION));
       try {
         return res.json(rxFromExtraction(state, await extractPrescription(image.base64, image.mime as any, caption)));
       } catch (err) {
