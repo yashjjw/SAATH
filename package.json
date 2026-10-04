@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "dev": "vercel dev"
+    "dev": "vercel dev",
+    "dev:local": "node scripts/dev-local.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.40.0",
