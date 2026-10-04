@@ -87,25 +87,13 @@
   .msg.call { width: 94%; max-width: 94%; border-left: 3px solid #25d366; }
   .call .ch { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; }
   .call .ci { width: 38px; height: 38px; border-radius: 50%; background: #25d366; display: grid; place-items: center; font-size: 18px; flex: none; }
-  .call.ring .ci { animation: ring 0.9s infinite; }
-  @keyframes ring { 0%,100% { transform: rotate(0); } 20% { transform: rotate(-14deg); } 40% { transform: rotate(14deg); } 60% { transform: rotate(-10deg); } 80% { transform: rotate(8deg); } }
   .call .ch b { display: block; font-weight: 600; }
   .call .ch small { color: var(--time); font-size: 12.5px; }
-  .call.live .ch small { color: #1fa855; }
-  .call.live .ch small::before { content: "● "; animation: bl 1.2s infinite; }
   .call .lbl { font-size: 11.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--time); margin: 4px 0; }
   .call .ln { font-size: 13px; margin: 5px 0; display: flex; gap: 6px; }
   .call .ln i { color: var(--time); font-style: normal; font-variant-numeric: tabular-nums; flex: none; }
   .call .ln .who { font-weight: 600; flex: none; }
   .call .ln.saath .who { color: #1fa855; } .call .ln.clinic .who { color: #027eb5; }
-  .call .rec { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 8px 10px; border-radius: 22px; background: var(--shadow); }
-  .call .rec button { width: 32px; height: 32px; border-radius: 50%; border: 0; background: #25d366; color: #fff; cursor: pointer; flex: none; }
-  .call .wave { flex: 1; display: flex; align-items: center; gap: 2px; height: 26px; }
-  .call .wave span { flex: 1; background: var(--icon); opacity: .55; border-radius: 2px; }
-  .call .rec.playing .wave span { animation: wv .8s ease-in-out infinite; opacity: .9; }
-  @keyframes wv { 0%,100% { transform: scaleY(.45); } 50% { transform: scaleY(1); } }
-  .call .rec em { font-style: normal; font-size: 12px; color: var(--time); flex: none; }
-  .call .note { font-size: 11.5px; color: var(--time); margin-top: 4px; }
   #sheet { position: fixed; inset: 0; background: #0008; z-index: 20; display: none; align-items: flex-end; justify-content: center; }
   #sheet.on { display: flex; }
   #sheet .panel { background: var(--in); color: var(--text); width: 100%; max-width: 640px; max-height: 80%; overflow-y: auto; border-radius: 16px 16px 0 0; padding: 14px 0 calc(14px + env(safe-area-inset-bottom, 0px)); }
@@ -316,48 +304,19 @@ const mmss = (n) => `${Math.floor(n / 60)}:${String(Math.round(n) % 60).padStart
 // Typing time scales with message length plus a random "thinking" jitter, so replies don't feel metronomic.
 const typingMs = (m) => Math.min(3600, 600 + ((m.text || "").length) * 11 + rnd(0, 1400));
 
-async function renderCall(m) {
+// The finished call, as the chat shows it: a static transcript. The live call is on the voice screen.
+function renderTranscript(m) {
   const b = bubble("in", "", null, m.time, "call");
-  const box = document.createElement("div"); box.className = "call ring";
-  box.innerHTML = '<div class="ch"><div class="ci">📞</div><div><b></b><small>Calling…</small></div></div>';
-  b.insertBefore(box, b.firstChild);
-  const sub = box.querySelector("small");
+  const box = document.createElement("div");
+  box.innerHTML = '<div class="ch"><div class="ci">📞</div><div><b></b><small></small></div></div><div class="lbl">Call transcript</div>';
   box.querySelector("b").textContent = m.clinic;
-  await sleep(rnd(2400, 4200));                      // ringing
-  box.classList.remove("ring"); box.classList.add("live"); sub.textContent = "Connected · 0:00";
-  const lbl = document.createElement("div"); lbl.className = "lbl"; lbl.textContent = "Live transcript"; box.appendChild(lbl);
-  let prev = 0;
+  box.querySelector("small").textContent = "Call ended · " + m.duration;
   for (const l of m.lines) {
-    await sleep(rnd(1100, 2600) + (l.t - prev) * 20);  // pauses vary; longer gaps in the call get a longer pause
-    prev = l.t; sub.textContent = "Connected · " + mmss(l.t);
     const row = document.createElement("div"); row.className = "ln " + l.who.toLowerCase();
-    const who = l.who === "Saath" ? "Saath (AI)" : "Clinic";
-    row.innerHTML = `<i>${mmss(l.t)}</i><span><span class="who">${who}:</span> ${esc(l.text)}</span>`;
-    box.appendChild(row); scroll();
+    row.innerHTML = `<i>${mmss(l.t)}</i><span><span class="who">${l.who === "Saath" ? "Saath (AI)" : "Clinic"}:</span> ${esc(l.text)}</span>`;
+    box.appendChild(row);
   }
-  await sleep(rnd(900, 1800));
-  box.classList.remove("live"); sub.textContent = "Call ended · " + m.duration;
-  // Recording: no real audio exists, so playback reads the transcript with the browser's text-to-speech.
-  const rec = document.createElement("div"); rec.className = "rec";
-  const bars = Array.from({ length: 28 }, (_, i) => `<span style="height:${30 + ((i * 37) % 70)}%;animation-delay:${(i % 7) * 0.09}s"></span>`).join("");
-  rec.innerHTML = `<button type="button" aria-label="Play recording">▶</button><div class="wave">${bars}</div><em>🎙 ${m.duration}</em>`;
-  box.appendChild(rec);
-  const btn = rec.querySelector("button"); let playing = false;
-  const stop = () => { playing = false; speechSynthesis.cancel(); rec.classList.remove("playing"); btn.textContent = "▶"; };
-  btn.onclick = () => {
-    if (!("speechSynthesis" in window)) return system("This browser has no text-to-speech, so the recording can't play.");
-    if (playing) return stop();
-    playing = true; rec.classList.add("playing"); btn.textContent = "⏸";
-    const voices = speechSynthesis.getVoices(); const v = voices.find((x) => /en[-_]IN/i.test(x.lang)) || voices.find((x) => /^en/i.test(x.lang));
-    (function next(i) {
-      if (!playing || i >= m.lines.length) return stop();
-      const u = new SpeechSynthesisUtterance(m.lines[i].text);
-      if (v) u.voice = v;
-      u.pitch = m.lines[i].who === "Saath" ? 1.15 : 0.8; u.rate = 1.02;
-      u.onend = () => next(i + 1); u.onerror = stop;
-      speechSynthesis.speak(u);
-    })(0);
-  };
+  b.insertBefore(box, b.firstChild);
   scroll();
 }
 
@@ -370,9 +329,9 @@ async function renderScript(msgs) {
     if (m.kind === "text" || m.kind === "card") {
       if (!quiet) { setStatus("typing…"); const d = typingDots(); await sleep(typingMs(m)); d.remove(); setStatus("online"); }
       bubble("in", m.text, null, m.time, m.kind === "card" ? "card" : "");
-    } else if (m.kind === "call") {
-      setStatus("on a call…"); await renderCall(m); setStatus("online");
-      await sleep(rnd(900, 1800));
+    } else if (m.kind === "transcript") {
+      setStatus("typing…"); const d = typingDots(); await sleep(rnd(900, 1800)); d.remove(); setStatus("online");
+      renderTranscript(m);
     } else if (m.kind === "system") system(m.text);
     else if (m.kind === "day") { const d = document.createElement("div"); d.className = "day"; d.textContent = m.text; log.appendChild(d); lastSide = null; scroll(); await sleep(rnd(700, 1400)); }
     else if (m.kind === "buttons") { await sleep(rnd(300, 800)); chips(m.options); }

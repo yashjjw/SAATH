@@ -14,7 +14,7 @@ export type Msg =
   | { kind: "card"; text: string; time?: string }
   | { kind: "system"; text: string }
   | { kind: "day"; text: string }
-  | { kind: "call"; clinic: string; lines: { who: "Saath" | "Clinic"; t: number; text: string }[]; duration: string; time?: string }
+  | { kind: "transcript"; clinic: string; lines: { who: "Saath" | "Clinic"; t: number; text: string }[]; duration: string; time?: string }
   | { kind: "buttons"; options: Opt[] }
   | { kind: "list"; button: string; title: string; items: { id: string; title: string; desc: string }[] };
 
@@ -106,12 +106,14 @@ function reprompt(s: DemoState, lead: string): DemoResult {
   return { state: s, messages: [t(lead), ...by[s.step]] };
 }
 
-// The call happens right away (no overnight wait). It is placed on Monday morning so that
-// "tomorrow at 11:30" in the transcript is Tuesday 6 Oct, matching the confirmation card.
+// The chat shows only the outcome of the call: a note, the finished transcript and the confirmation.
+// The call itself is on the voice screen. It is placed on Monday morning so that "tomorrow at 11:30"
+// in the transcript is Tuesday 6 Oct, matching the confirmation card.
 function bookingFlow(): Msg[] {
   return [
     { kind: "day", text: "Monday, 5 Oct" },
-    { kind: "call", clinic: "Heartcare Clinic, Vijay Nagar", lines: CALL_LINES, duration: "1:24", time: "10:04 am" },
+    { kind: "system", text: "Saath called Heartcare Clinic · 10:04 am (1 min 24 sec)" },
+    { kind: "transcript", clinic: "Heartcare Clinic, Vijay Nagar", lines: CALL_LINES, duration: "1:24", time: "10:05 am" },
     t("Ramesh, your appointment is confirmed ✅", "10:06 am"),
     {
       kind: "card",

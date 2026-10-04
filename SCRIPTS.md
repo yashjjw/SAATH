@@ -62,8 +62,10 @@ Saath mode, start of a fresh thread. The day divider reads **Sunday, 4 Oct**. Ti
 
 ### The call (after Morning)
 
-1. A call card for **Heartcare Clinic, Vijay Nagar** rings for 2 to 4 seconds.
-2. It connects (timer starts) and a **Live transcript** appears line by line:
+The chat does **not** show the call live. The live call is on the voice screen (section 1). After **Morning**, the chat jumps to **Monday, 5 Oct** and shows only the outcome:
+
+1. A note: *Saath called Heartcare Clinic · 10:04 am (1 min 24 sec)*
+2. A **Call transcript** card, already finished (**Call ended · 1:24**), with no ringing, no live timer and no recording player:
 
    | Time | Who | Line |
    | --- | --- | --- |
@@ -76,8 +78,7 @@ Saath mode, start of a fresh thread. The day divider reads **Sunday, 4 Oct**. Ti
    | 1:06 | Saath (AI) | Thank you. I'll send him the confirmation. |
    | 1:15 | Clinic | Okay, thank you. |
 
-3. The card shows **Call ended · 1:24** and a recording player (the ▶ button reads the transcript aloud with the browser's built-in voice).
-4. Saath then sends:
+3. Saath then sends:
    - Ramesh, your appointment is confirmed ✅
    - Card: **Appointment confirmed** · Dr. Meera Kulkarni, Cardiologist · Tuesday, 6 Oct · 11:30 am · Heartcare Clinic, Vijay Nagar · Fees ₹800 (payable at the clinic) · Please bring: old reports and your medicine list
    - What else can I do for you? 🔔 Remind you tomorrow at 9:30 am? 👨 Let Karan know? · **[Do both] [Just remind me] [No thanks]**
@@ -170,5 +171,5 @@ Clinician-mode replies come from the model, so wording varies between runs. Pack
 | Voice call script | `lib/callscript.ts` |
 | Voice call page / Gnani proxy | `public/voice.html`, `api/voice.ts` |
 | Saath chat flow (all replies above) | `lib/saath.ts` |
-| Chat UI (call card, buttons, list) | `public/index.html` |
+| Chat UI (transcript card, buttons, list) | `public/index.html` |
 | Clinician prompt and record | `prompts/clinic.md`, `lib/fixtures/clinic.ts` |
