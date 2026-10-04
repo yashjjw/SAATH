@@ -94,7 +94,7 @@
   .call .ln i { color: var(--time); font-style: normal; font-variant-numeric: tabular-nums; flex: none; }
   .call .ln .who { font-weight: 600; flex: none; }
   .call .ln.saath .who { color: #1fa855; } .call .ln.clinic .who { color: #027eb5; }
-  #sheet { position: fixed; inset: 0; background: #0008; z-index: 20; display: none; align-items: flex-end; justify-content: center; }
+  #sheet { position: fixed; inset: 0; background: #0008; z-index: 30; display: none; align-items: flex-end; justify-content: center; }
   #sheet.on { display: flex; }
   #sheet .panel { background: var(--in); color: var(--text); width: 100%; max-width: 640px; max-height: 80%; overflow-y: auto; border-radius: 16px 16px 0 0; padding: 14px 0 calc(14px + env(safe-area-inset-bottom, 0px)); }
   #sheet h3 { margin: 0 16px 8px; font-size: 16px; font-weight: 600; }
@@ -118,9 +118,12 @@
   .spk { background: none; border: 0; cursor: pointer; font-size: 12px; opacity: .55; padding: 0 3px; }
   .spk:hover { opacity: 1; }
   .msg a { color: #027eb5; word-break: break-all; }
-  #desk { position: fixed; top: 0; right: 0; bottom: 0; width: 400px; max-width: 100vw; background: var(--in); color: var(--text); border-left: 1px solid var(--shadow); box-shadow: -2px 0 8px var(--shadow); display: none; flex-direction: column; z-index: 15; font-size: 13px; }
+  #desk { position: fixed; top: 0; right: 0; bottom: 0; width: 460px; max-width: 100vw; background: var(--in); color: var(--text); border-left: 1px solid var(--shadow); box-shadow: -2px 0 8px var(--shadow); display: none; flex-direction: column; z-index: 15; font-size: 13px; }
   html.desk-open #desk { display: flex; }
-  @media (min-width: 1120px) { html.desk-open body { margin-left: max(16px, calc((100vw - 400px - 640px) / 2)); margin-right: 0; } }
+  @media (min-width: 1180px) {
+    html.desk-open body { margin-left: max(16px, calc((100vw - 460px - 640px) / 2)); margin-right: 0; }
+    html.desk-open #preview { margin-left: max(16px, calc((100vw - 460px - 640px) / 2)); margin-right: 0; }
+  }
   #desk .dh { padding: 12px 14px 8px; border-bottom: 1px solid var(--shadow); display: flex; align-items: flex-start; gap: 8px; }
   #desk .dh div { flex: 1; } #desk .dh b { font-size: 15px; display: block; } #desk .dh span { color: var(--time); font-size: 12px; }
   #desk .dh button { background: none; border: 0; color: var(--icon); font-size: 18px; cursor: pointer; }
@@ -129,18 +132,18 @@
   .de { border-radius: 8px; padding: 8px 10px; border: 1px solid var(--shadow); background: var(--bar); }
   .de.req { border-left: 3px solid #1fa855; } .de.res { border-left: 3px solid #027eb5; }
   .de .dt { font-weight: 600; font-size: 12px; } .de .dm { color: var(--time); font-size: 11.5px; word-break: break-all; margin: 2px 0; }
-  .de pre { margin: 4px 0 0; white-space: pre-wrap; word-break: break-word; font: 11.5px/1.4 ui-monospace, Menlo, Consolas, monospace; max-height: 190px; overflow: auto; }
+  .de pre { margin: 4px 0 0; white-space: pre-wrap; word-break: break-word; font: 11.5px/1.4 ui-monospace, Menlo, Consolas, monospace; max-height: 440px; overflow: auto; }
   .de .dn { color: var(--time); font-size: 11.5px; font-style: italic; margin-top: 4px; }
   .de .dr { margin-top: 5px; font-size: 12px; } .de .dr.ok { color: #1fa855; } .de .dr.bad { color: #d64545; } .de .dr.pend { color: var(--time); }
-  #desk .din { border-top: 1px solid var(--shadow); padding: 8px 12px 12px; display: flex; flex-direction: column; gap: 8px; max-height: 52%; overflow-y: auto; }
+  #desk .din { border-top: 1px solid var(--shadow); padding: 8px 12px 12px; display: flex; flex-direction: column; gap: 8px; max-height: 62%; overflow-y: auto; }
   #desk section label { font-weight: 600; font-size: 12px; display: block; margin-bottom: 3px; }
   #desk section.await { outline: 2px solid #00a884; outline-offset: 4px; border-radius: 6px; }
   #desk section.await label::after { content: "  ← response expected"; color: #00a884; font-weight: 500; }
-  #desk textarea { width: 100%; box-sizing: border-box; resize: vertical; min-height: 44px; max-height: 160px; border: 1px solid var(--shadow); border-radius: 8px; padding: 6px 8px; background: var(--field); color: var(--text); font: 12px/1.4 ui-monospace, Menlo, Consolas, monospace; }
+  #desk textarea { width: 100%; box-sizing: border-box; resize: vertical; min-height: 92px; max-height: 340px; border: 1px solid var(--shadow); border-radius: 8px; padding: 6px 8px; background: var(--field); color: var(--text); font: 12px/1.4 ui-monospace, Menlo, Consolas, monospace; }
   #desk .drow { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 4px; }
   #desk .drow button { border: 1px solid var(--shadow); background: var(--bar); color: var(--text); border-radius: 12px; padding: 3px 10px; font-size: 11.5px; cursor: pointer; }
   #desk .drow .dsend { background: #00a884; color: #fff; border-color: #00a884; margin-left: auto; padding: 4px 14px; font-weight: 600; }
-  #preview { position: fixed; inset: 0; background: #0b141a; z-index: 10; display: none; flex-direction: column; max-width: 640px; margin: 0 auto; }
+  #preview { position: fixed; inset: 0; background: #0b141a; z-index: 30; display: none; flex-direction: column; max-width: 640px; margin: 0 auto; }
   #preview.on { display: flex; }
   #preview .top { padding: calc(10px + env(safe-area-inset-top, 0px)) 12px 10px; }
   #preview .top button { background: none; border: 0; color: #e9edef; padding: 6px; cursor: pointer; border-radius: 50%; }
@@ -495,11 +498,15 @@ function send_(transcript, url, secs) { return send(transcript, null, undefined,
 const SYS = { pharmacy: "Pharmacy", pinelabs: "Pine Labs", delhivery: "Delhivery" };
 let deskPending = null;
 const dlog = $("dlog");
-function setDesk(open) { document.documentElement.classList.toggle("desk-open", open); try { localStorage.setItem("saath_desk", open ? "1" : "0"); } catch {} }
-$("deskbtn").onclick = () => setDesk(!document.documentElement.classList.contains("desk-open"));
-$("dclose").onclick = () => setDesk(false);
-(function () { let v = null; try { v = localStorage.getItem("saath_desk"); } catch {} setDesk(v === null ? window.innerWidth >= 1120 : v === "1"); })();
+function setDesk(open, remember) { document.documentElement.classList.toggle("desk-open", open); if (remember) { try { localStorage.setItem("saath_desk", open ? "1" : "0"); } catch {} } }   // only an explicit toggle is remembered, never the screen-size default
+$("deskbtn").onclick = () => setDesk(!document.documentElement.classList.contains("desk-open"), true);
+$("dclose").onclick = () => setDesk(false, true);
+(function () { let v = null; try { v = localStorage.getItem("saath_desk"); } catch {} setDesk(v === null ? window.innerWidth >= 1180 : v === "1"); })();
 
+function fitBox(ta) {          // grow the paste box to show what is in it (up to a cap), shrink back when emptied
+  ta.style.height = "auto";
+  ta.style.height = Math.min(Math.max(ta.scrollHeight + 4, 92), 340) + "px";
+}
 function dEntry(cls) { dlog.querySelector(".empty")?.remove(); const d = document.createElement("div"); d.className = "de " + cls; dlog.appendChild(d); dlog.scrollTop = dlog.scrollHeight; return d; }
 function addRequest(c) {
   const sec = document.querySelector(`#desk section[data-sys="${c.system}"]`); if (sec) sec.classList.add("await");   // this source now owes the agent a reply
@@ -525,7 +532,7 @@ function setExamples(set) {
   box.innerHTML = "";
   set.items.forEach((it) => {
     const b = document.createElement("button"); b.type = "button"; b.textContent = it.label;
-    b.onclick = () => { const ta = box.closest("section").querySelector("textarea"); ta.value = typeof it.json === "string" ? it.json : JSON.stringify(it.json, null, 2); ta.focus(); };
+    b.onclick = () => { const ta = box.closest("section").querySelector("textarea"); ta.value = typeof it.json === "string" ? it.json : JSON.stringify(it.json, null, 2); fitBox(ta); ta.focus(); };
     box.appendChild(b);
   });
 }
@@ -538,7 +545,7 @@ function applyDesk(d) {
 }
 function deskReset() {
   dlog.innerHTML = '<div class="empty">Nothing yet. Requests the agent makes will appear here.</div>';
-  document.querySelectorAll("#desk textarea").forEach((x) => { x.value = ""; });
+  document.querySelectorAll("#desk textarea").forEach((x) => { x.value = ""; fitBox(x); });
   document.querySelectorAll("#desk .dex").forEach((x) => { x.innerHTML = ""; });
   document.querySelectorAll("#desk section.await").forEach((x) => x.classList.remove("await"));
   deskPending = null;
@@ -552,7 +559,8 @@ async function sendEvent(system, raw) {
 }
 document.querySelectorAll("#desk section").forEach((sec) => {
   const ta = sec.querySelector("textarea");
-  sec.querySelector(".dsend").onclick = async () => { const v = ta.value; if (!v.trim()) return; ta.value = ""; await sendEvent(sec.dataset.sys, v); };
+  ta.addEventListener("input", () => fitBox(ta));
+  sec.querySelector(".dsend").onclick = async () => { const v = ta.value; if (!v.trim()) return; ta.value = ""; fitBox(ta); await sendEvent(sec.dataset.sys, v); };
 });
 
 async function send(t, img, id, voice, event) {
