@@ -88,13 +88,6 @@
   #mic .lvl i { display: block; height: 100%; width: 0; background: #fff; transition: width .08s; }
   #typed { flex: 1; border: 1px solid var(--line); border-radius: 20px; padding: 9px 14px; background: var(--card); color: var(--text); font: inherit; min-width: 0; }
   #send { border: 0; border-radius: 50%; width: 38px; height: 38px; background: var(--accent); color: #fff; flex: none; }
-  .prompt { display: none; background: var(--warn-bg); color: var(--text); border-radius: 12px; padding: 10px 14px; border-left: 4px solid #f0b429; }
-  .prompt.on { display: block; }
-  .prompt small { display: block; color: var(--muted); font-size: 11.5px; letter-spacing: .04em; text-transform: uppercase; margin-bottom: 2px; }
-  .prompt b { font-size: 16px; font-weight: 600; }
-  .script { align-self: center; width: 92%; background: var(--card); border-radius: 12px; padding: 10px 14px; box-shadow: 0 1px 2px var(--shadow); font-size: 13px; }
-  .script h4 { margin: 0 0 6px; font-size: 13px; }
-  .script ol { margin: 0; padding-left: 20px; } .script li { margin: 3px 0; color: var(--muted); } .script li.cur { color: var(--text); font-weight: 600; } .script li.done { text-decoration: line-through; opacity: .6; }
   .hint { font-size: 12px; color: var(--muted); text-align: center; min-height: 16px; }
 </style>
 </head>
@@ -102,13 +95,13 @@
 <header>
   <div class="top">
     <a href="/">← Chat</a>
-    <div class="title">Voice call: you are the clinic</div>
+    <div class="title">Saathi · calling Heartcare Clinic</div>
     <button id="pw" type="button">Password</button>
   </div>
   <div class="parties">
     <div class="p saathi" id="pS"><div class="av">S</div><b>Saathi</b><small>AI assistant</small></div>
     <div class="mid" id="mid"><div class="time" id="time">0:00</div><div id="status">Ready</div></div>
-    <div class="p clinic" id="pC"><div class="av">🏥</div><b>You</b><small>Clinic reception</small></div>
+    <div class="p clinic" id="pC"><div class="av">🏥</div><b>Heartcare Clinic</b><small>Reception</small></div>
   </div>
 </header>
 <div class="banner" id="banner"></div>
@@ -118,14 +111,13 @@
 </div></div>
 <div id="log" aria-live="polite"></div>
 <div class="dock">
-  <div class="prompt" id="prompt"><small>Your line: read this aloud</small><b id="pline"></b></div>
   <div class="hint" id="hint"></div>
   <div class="row">
     <button id="go" type="button">▶ Start call</button>
     <button id="mic" type="button" disabled>🎙 Tap to speak</button>
   </div>
   <div class="row">
-    <input id="typed" placeholder="or type what the clinic says" autocomplete="off" disabled>
+    <input id="typed" placeholder="or type a reply" autocomplete="off" disabled>
     <button id="send" type="button" aria-label="Send" disabled>➤</button>
   </div>
 </div>
@@ -223,29 +215,9 @@ function typingDots() { const d = document.createElement("div"); d.className = "
 function setTurnUi(enabled) {
   const micOk = enabled && engine === "gnani" && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
   $("mic").disabled = !micOk; $("typed").disabled = !enabled; $("send").disabled = !enabled;
-  const line = lines[idx];
-  $("prompt").classList.toggle("on", enabled && !!line);
-  if (enabled && line) {
-    $("pline").textContent = line.text;
-    hint(micOk ? "Tap the mic and read your line. It doesn't have to be word-perfect." : "No microphone path here: press Enter to send the line, or edit it first.");
-    if (!micOk) $("typed").value = line.text;
-    $("typed").focus();
-  } else hint("");
+  if (enabled) { hint(micOk ? "Tap the mic to reply." : "Type a reply."); $("typed").focus(); }
+  else hint("");
 }
-const norm = (t) => t.toLowerCase().replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter(Boolean);
-function matchPct(expected, heard) {          // share of the script's words that appear in order in what STT heard
-  const a = norm(expected), b = norm(heard); if (!a.length) return 0;
-  const m = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
-  for (let i = 0; i < a.length; i++) for (let j = 0; j < b.length; j++) m[i + 1][j + 1] = a[i] === b[j] ? m[i][j] + 1 : Math.max(m[i][j + 1], m[i + 1][j]);
-  return Math.round(100 * m[a.length][b.length] / a.length);
-}
-function renderScriptCard() {
-  const mine = lines.map((l, i) => ({ l, i })).filter((x) => x.l.who === "Clinic");
-  const d = document.createElement("div"); d.className = "script";
-  d.innerHTML = `<h4>Your script (${mine.length} lines): read each when prompted</h4><ol>${mine.map((x) => `<li id="sl${x.i}">${esc(x.l.text)}</li>`).join("")}</ol>`;
-  log.appendChild(d);
-}
-function markScript(i, cls) { const el = $("sl" + i); if (el) { el.className = cls; } }
 
 // ---- Saathi speaks -------------------------------------------------------------------------
 async function saathiSay(text, me, meta = {}, pre = null) {
@@ -282,7 +254,7 @@ async function saathiSay(text, me, meta = {}, pre = null) {
 
 // ---- the clinic (you) speaks ----------------------------------------------------------------
 function addClinicBubble(text, audioUrl, chips) {
-  const d = bubble("Clinic", "You · clinic reception");
+  const d = bubble("Clinic", "Heartcare Clinic · reception");
   const tx = d.querySelector(".tx"); tx.className = "tx"; tx.textContent = text;
   chips.forEach((c) => chip(d, c));
   const btn = d.querySelector("button");
@@ -306,7 +278,7 @@ async function advance(me) {
     const line = lines[idx];
     if (line.who === "Clinic") {
       prefetch(idx + 1);
-      markScript(idx, "cur"); $("status").textContent = "Your turn"; setTurnUi(true); return;
+      $("status").textContent = "Listening"; setTurnUi(true); return;
     }
     await sleep(rnd(350, 1100)); if (!alive()) return;       // a natural beat before Saathi speaks
     const pre = prefetch(idx); if (pre) pre.catch(() => {});
@@ -318,9 +290,8 @@ async function advance(me) {
 function submitClinic(me, text, url, chips) {
   const line = lines[idx];
   if (!line || line.who !== "Clinic" || me !== run) return;
-  chips.push(`matches script ${matchPct(line.text, text)}%`);
   addClinicBubble(text, url, chips);
-  markScript(idx, "done"); setTurnUi(false); idx++;
+  setTurnUi(false); idx++;
   advance(me);
 }
 
@@ -373,15 +344,15 @@ async function onRecStop() {
   setTurnUi(false); $("status").textContent = "Transcribing…"; hint("Transcribing with Gnani STT…");
   try {
     const wav = await toWav16k(blob);
-    if (wav.seconds < 0.4) { hint("That was too short. Tap the mic and try again."); $("status").textContent = "Your turn"; setTurnUi(true); return; }
+    if (wav.seconds < 0.4) { hint("That was too short. Tap the mic and try again."); $("status").textContent = "Listening"; setTurnUi(true); return; }
     const r = await api({ action: "stt", audio: bytesToB64(wav.bytes), mime: "audio/wav", language: "en-IN" });
     if (me !== run) return;
-    if (!r.transcript) { hint("I couldn't hear any words. Tap the mic and try again."); $("status").textContent = "Your turn"; setTurnUi(true); return; }
+    if (!r.transcript) { hint("I couldn't hear any words. Tap the mic and try again."); $("status").textContent = "Listening"; setTurnUi(true); return; }
     hint(""); submitClinic(me, r.transcript, URL.createObjectURL(blob), [`STT ${r.ms.stt} ms`, "Gnani Prisma"]);
   } catch (e) {
     if (me !== run) return;
     if (e.status === 401) return endCall(me, "Wrong password.");
-    sys("Couldn't transcribe that: " + e.message + " (you can type instead)"); $("status").textContent = "Your turn"; setTurnUi(true);
+    sys("Couldn't transcribe that: " + e.message + " (you can type instead)"); $("status").textContent = "Listening"; setTurnUi(true);
   }
 }
 $("mic").onclick = () => { if (rec && rec.state === "recording") stopRec(); else if (!$("mic").disabled) startRec(); };
@@ -389,7 +360,7 @@ $("mic").onclick = () => { if (rec && rec.state === "recording") stopRec(); else
 function sendTyped() {
   const t = $("typed").value.trim(); if (!t || $("typed").disabled) return;
   $("typed").value = "";
-  submitClinic(run, t, null, ["typed, no STT"]);
+  submitClinic(run, t, null, ["typed"]);
 }
 $("send").onclick = sendTyped;
 $("typed").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); sendTyped(); } });
@@ -411,14 +382,14 @@ async function startCall() {
   lines = call.lines;
   engine = call.gnani ? "gnani" : "browser";
   $("engine").textContent = engine === "gnani" ? "Gnani Timbre (TTS) + Prisma (STT)" : "Browser voice (fallback)";
-  if (engine === "browser") banner("GNANI_API_KEY isn't set on the server: Saathi speaks in your browser's voice and there is no speech-to-text, so type what the clinic says. Add the key to use Gnani.");
-  sys(call.title); renderScriptCard();
+  if (engine === "browser") banner("GNANI_API_KEY isn't set on the server: Saathi speaks in your browser's voice and there is no speech-to-text, so type your replies. Add the key to use Gnani.");
+  sys(call.title);
   prefetch(0);                                            // synthesize Saathi's opening while the phone "rings"
   await sleep(rnd(2200, 3600)); if (!alive()) return;     // ringing
   $("mid").classList.remove("ring"); $("status").textContent = "Connected";
   t0 = Date.now(); clearInterval(timer);
   timer = setInterval(() => { $("time").textContent = mmss((Date.now() - t0) / 1000); }, 500);
-  sys("Connected. You are the clinic receptionist: answer Saathi with the lines in your script.");
+  sys("Connected");
   await advance(me);
 }
 
@@ -427,9 +398,8 @@ function finishCall(me) {
   $("status").textContent = "Call ended";
   sys("Call ended · " + mmss((Date.now() - t0) / 1000));
   setBtnAgain();
-  // The outcome of the scripted call (fixed by the script, not extracted from your speech).
   const d = document.createElement("div"); d.className = "summary";
-  d.innerHTML = `<h4>✅ Appointment confirmed</h4><div><b>Doctor</b>Dr. Meera Kulkarni</div><div><b>Date</b>6 Oct</div><div><b>Time</b>11:30 am</div><div><b>Fee</b>₹800</div><div><b>Bring</b>old reports</div><small>Scripted demo outcome. It is fixed by the script, not extracted from what you said.</small>`;
+  d.innerHTML = `<h4>✅ Appointment confirmed</h4><div><b>Doctor</b>Dr. Meera Kulkarni</div><div><b>Date</b>6 Oct</div><div><b>Time</b>11:30 am</div><div><b>Fee</b>₹800</div><div><b>Bring</b>old reports</div>`;
   log.appendChild(d); scroll();
 }
 function setBtnAgain() { $("go").textContent = "↺ Call again"; $("go").classList.remove("end"); setSpeaking(null); }
@@ -441,7 +411,7 @@ $("go").onclick = () => {
     $("status").textContent = "Ended"; sys("Call ended by you."); setBtnAgain();
   } else startCall();
 };
-sys("Press Start call. Saathi (an AI) phones the clinic and you answer as the receptionist, reading the lines shown on screen. Gnani transcribes you; Saathi's lines are scripted and spoken in a Gnani voice.");
+sys("Press Start call to place the call.");
 </script>
 </body>
 </html>

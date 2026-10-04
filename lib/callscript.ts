@@ -4,7 +4,7 @@
 export interface CallLine { who: "Saathi" | "Clinic"; text: string }
 
 export const CALL = {
-  title: "Scripted call: you play Heartcare Clinic reception, Saathi (AI) phones to book",
+  title: "Saathi is calling Heartcare Clinic, Vijay Nagar",
   clinic: "Heartcare Clinic, Vijay Nagar",
   lines: [
     { who: "Saathi", text: "Hello, this is Saathi, an AI assistant. I'm calling on behalf of Mr. Ramesh Sharma. Could I book an appointment with Dr. Kulkarni? He has visited your clinic before." },
