@@ -8,7 +8,7 @@
 <style>
   :root {
     --bg: #eef2f1; --card: #ffffff; --text: #111b21; --muted: #667781; --line: #0b141a1a;
-    --head: #0f2a2a; --head-text: #e9f3f1; --accent: #1fa855; --blue: #027eb5;
+    --head: #0f2a2a; --head-text: #e9f3f1; --accent: #1fa855; --blue: #027eb5; --red: #d64545;
     --out: #d9fdd3; --in: #ffffff; --shadow: #0b141a21; --warn-bg: #fff5c4; --warn: #54410d;
   }
   @media (prefers-color-scheme: dark) {
@@ -36,16 +36,20 @@
   @keyframes pulse { 0% { transform: scale(.9); opacity: .9; } 100% { transform: scale(1.25); opacity: 0; } }
   .p b { display: block; font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .p small { opacity: .7; font-size: 11.5px; }
-  .mid { text-align: center; font-size: 12.5px; min-width: 96px; }
+  .mid { text-align: center; font-size: 12.5px; min-width: 110px; }
   .mid .time { font-size: 20px; font-variant-numeric: tabular-nums; font-weight: 600; }
   .mid.ring .time::after { content: " …"; animation: bl 1s infinite; }
   @keyframes bl { 50% { opacity: .3; } }
 
   .banner { margin: 8px 12px 0; padding: 8px 12px; border-radius: 8px; background: var(--warn-bg); color: var(--warn); font-size: 12.5px; display: none; }
   .banner.on { display: block; }
+  .opts { padding: 6px 12px 0; }
+  .sel { display: flex; gap: 8px; font-size: 12px; color: var(--muted); align-items: center; flex-wrap: wrap; }
+  .sel select { background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 4px 6px; font: inherit; font-size: 12px; }
 
   #log { flex: 1; overflow-y: auto; padding: 12px 12px 8px; display: flex; flex-direction: column; gap: 8px; }
   .sys { align-self: center; background: var(--card); color: var(--muted); border-radius: 8px; padding: 5px 12px; font-size: 12.5px; box-shadow: 0 1px .5px var(--shadow); text-align: center; max-width: 92%; }
+  .sys button { margin-left: 8px; border: 1px solid var(--line); background: none; color: var(--blue); border-radius: 10px; padding: 1px 10px; }
   .vm { max-width: 86%; background: var(--in); border-radius: 10px; padding: 8px 10px 8px; box-shadow: 0 1px .5px var(--shadow); }
   .vm.out { align-self: flex-end; background: var(--out); border-top-right-radius: 2px; }
   .vm.in { align-self: flex-start; border-top-left-radius: 2px; }
@@ -63,37 +67,60 @@
   .tx.wait { color: var(--muted); font-style: italic; }
   .meta { margin-top: 5px; display: flex; flex-wrap: wrap; gap: 4px; }
   .meta span { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 10px; padding: 1px 7px; }
+  .typing { align-self: flex-end; background: var(--out); border-radius: 10px; padding: 10px 14px; display: flex; gap: 4px; }
+  .typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); opacity: .5; animation: bl 1.1s infinite; }
+  .typing i:nth-child(2) { animation-delay: .2s; } .typing i:nth-child(3) { animation-delay: .4s; }
+  .summary { align-self: center; width: 92%; background: var(--card); border-radius: 12px; padding: 12px 14px; box-shadow: 0 1px 2px var(--shadow); border-left: 4px solid var(--accent); }
+  .summary.no { border-left-color: var(--red); }
+  .summary h4 { margin: 0 0 6px; font-size: 14px; }
+  .summary div { font-size: 13px; margin: 2px 0; }
+  .summary div b { display: inline-block; min-width: 92px; color: var(--muted); font-weight: 500; }
+  .summary small { color: var(--muted); display: block; margin-top: 6px; }
 
-  footer { padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px)); display: flex; gap: 8px; align-items: center; border-top: 1px solid var(--line); }
-  #go { flex: 1; border: 0; border-radius: 22px; padding: 12px; background: var(--accent); color: #fff; font-weight: 600; font-size: 15px; }
-  #go.end { background: #d64545; }
-  .sel { display: flex; gap: 6px; font-size: 12px; color: var(--muted); align-items: center; flex-wrap: wrap; }
-  .sel select { background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 4px 6px; font: inherit; font-size: 12px; }
-  .opts { padding: 6px 12px 0; }
+  .dock { padding: 8px 12px calc(10px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
+  .row { display: flex; gap: 8px; align-items: center; }
+  #go { flex: none; border: 0; border-radius: 22px; padding: 10px 16px; background: var(--accent); color: #fff; font-weight: 600; }
+  #go.end { background: var(--red); }
+  #mic { flex: 1; border: 0; border-radius: 22px; padding: 12px; background: var(--blue); color: #fff; font-weight: 600; font-size: 15px; }
+  #mic:disabled, #typed:disabled, #send:disabled { opacity: .45; cursor: not-allowed; }
+  #mic.rec { background: var(--red); }
+  #mic .lvl { display: inline-block; width: 60px; height: 8px; border-radius: 4px; background: #ffffff55; vertical-align: middle; margin-left: 8px; overflow: hidden; }
+  #mic .lvl i { display: block; height: 100%; width: 0; background: #fff; transition: width .08s; }
+  #typed { flex: 1; border: 1px solid var(--line); border-radius: 20px; padding: 9px 14px; background: var(--card); color: var(--text); font: inherit; min-width: 0; }
+  #send { border: 0; border-radius: 50%; width: 38px; height: 38px; background: var(--accent); color: #fff; flex: none; }
+  .hint { font-size: 12px; color: var(--muted); text-align: center; min-height: 16px; }
 </style>
 </head>
 <body>
 <header>
   <div class="top">
     <a href="/">← Chat</a>
-    <div class="title">Voice call simulation</div>
+    <div class="title">Voice call: you are the clinic</div>
     <button id="pw" type="button">Password</button>
   </div>
   <div class="parties">
     <div class="p saathi" id="pS"><div class="av">S</div><b>Saathi</b><small>AI assistant</small></div>
-    <div class="mid ring" id="mid"><div class="time" id="time">0:00</div><div id="status">Ready</div></div>
-    <div class="p clinic" id="pC"><div class="av">🏥</div><b>Heartcare Clinic</b><small>Reception</small></div>
+    <div class="mid" id="mid"><div class="time" id="time">0:00</div><div id="status">Ready</div></div>
+    <div class="p clinic" id="pC"><div class="av">🏥</div><b>You</b><small>Clinic reception</small></div>
   </div>
 </header>
 <div class="banner" id="banner"></div>
 <div class="opts"><div class="sel">
-  <span>Voices:</span>
-  <label>Saathi <select id="vS"></select></label>
-  <label>Clinic <select id="vC"></select></label>
+  <label>Saathi's voice <select id="vS"></select></label>
   <span id="engine"></span>
 </div></div>
 <div id="log" aria-live="polite"></div>
-<footer><button id="go" type="button">▶ Start call</button></footer>
+<div class="dock">
+  <div class="hint" id="hint"></div>
+  <div class="row">
+    <button id="go" type="button">▶ Start call</button>
+    <button id="mic" type="button" disabled>🎙 Tap to speak</button>
+  </div>
+  <div class="row">
+    <input id="typed" placeholder="or type what the clinic says" autocomplete="off" disabled>
+    <button id="send" type="button" aria-label="Send" disabled>➤</button>
+  </div>
+</div>
 
 <script>
 const $ = (id) => document.getElementById(id);
@@ -101,18 +128,15 @@ const log = $("log");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const rnd = (a, b) => a + Math.random() * (b - a);
 const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s) % 60).padStart(2, "0")}`;
-const esc = (s) => s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
 const scroll = () => { log.scrollTop = log.scrollHeight; };
 
 // English (en-IN) voices from Gnani's Timbre v2.5 catalog.
 const VOICES = ["Kaveri", "Trupti", "Devika", "Pranav", "Shlok", "Girish"];
 const store = { get: (k, d) => { try { return localStorage.getItem(k) || d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
-for (const [id, def] of [["vS", "Kaveri"], ["vC", "Pranav"]]) {
-  const sel = $(id);
-  sel.innerHTML = VOICES.map((v) => `<option>${v}</option>`).join("");
-  sel.value = store.get("saath_" + id, def);
-  sel.onchange = () => store.set("saath_" + id, sel.value);
-}
+$("vS").innerHTML = VOICES.map((v) => `<option>${v}</option>`).join("");
+$("vS").value = store.get("saath_vS", "Kaveri");
+$("vS").onchange = () => store.set("saath_vS", $("vS").value);
 
 const key = () => { try { return sessionStorage.getItem("saath_key") || ""; } catch { return ""; } };
 function askKey() {
@@ -130,157 +154,271 @@ async function api(body) {
 }
 
 function banner(t) { const b = $("banner"); b.textContent = t; b.classList.toggle("on", !!t); }
-function sys(t) { const d = document.createElement("div"); d.className = "sys"; d.textContent = t; log.appendChild(d); scroll(); }
+function sys(t, retry) {
+  const d = document.createElement("div"); d.className = "sys"; d.textContent = t;
+  if (retry) { const b = document.createElement("button"); b.type = "button"; b.textContent = "Retry"; b.onclick = () => { d.remove(); retry(); }; d.appendChild(b); }
+  log.appendChild(d); scroll();
+}
+const hint = (t) => { $("hint").textContent = t || ""; };
 
-let run = 0;            // bumped to cancel a running call
-let engine = "gnani";   // "gnani" | "browser" (fallback, no STT)
-let audioEl = null;
-let timer = null, t0 = 0;
+// ---- call state ----------------------------------------------------------------------------
+let run = 0;             // bumped to cancel the call
+let engine = "gnani";    // "gnani" | "browser" (fallback: browser voice for Saathi, typed input only)
+let turns = [];          // [{who, text}] the transcript the agent sees
+let audioEl = null, timer = null, t0 = 0, busy = false, opening = "";
 
 function setSpeaking(who) {
   $("pS").classList.toggle("speaking", who === "Saathi");
   $("pC").classList.toggle("speaking", who === "Clinic");
 }
 function stopAudio() { try { audioEl && audioEl.pause(); } catch {} audioEl = null; try { speechSynthesis.cancel(); } catch {} }
-
 function b64ToUrl(b64, mime) {
   const bin = atob(b64); const u8 = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
   return URL.createObjectURL(new Blob([u8], { type: mime }));
 }
 
-// Browser text-to-speech fallback, used only when Gnani isn't configured or errors.
-function browserSpeak(text, who) {
+function browserSpeak(text) {
   return new Promise((resolve) => {
     if (!("speechSynthesis" in window)) return resolve(0);
     const voices = speechSynthesis.getVoices();
     const v = voices.find((x) => /en[-_]IN/i.test(x.lang)) || voices.find((x) => /^en/i.test(x.lang));
-    const u = new SpeechSynthesisUtterance(text);
-    if (v) u.voice = v; u.pitch = who === "Saathi" ? 1.15 : 0.8; u.rate = 1.02;
+    const u = new SpeechSynthesisUtterance(text); if (v) u.voice = v; u.pitch = 1.15; u.rate = 1.02;
     const t = Date.now(); let done = false;
     const finish = () => { if (done) return; done = true; clearTimeout(guard); resolve((Date.now() - t) / 1000); };
-    const guard = setTimeout(finish, 3000 + text.length * 90);   // speechSynthesis can fail to fire onend
-    u.onend = u.onerror = finish;
-    speechSynthesis.speak(u);
+    const guard = setTimeout(finish, 3000 + text.length * 90);
+    u.onend = u.onerror = finish; speechSynthesis.speak(u);
   });
 }
-
-// Resolves when playback ends. A timer guards against audio that never reports "ended"
-// (autoplay blocked, no output device), so one bad line can't freeze the whole call.
+// Resolves when playback ends; a timer guards against audio that never reports "ended".
 function playUrl(url) {
   return new Promise((resolve) => {
     const a = new Audio(url); audioEl = a;
-    let done = false, guard = setTimeout(() => finish(0), 25000);
+    let done = false, guard = setTimeout(() => finish(0), 30000);
     const finish = (d) => { if (done) return; done = true; clearTimeout(guard); resolve(d || (isFinite(a.duration) ? a.duration : 0)); };
     a.onloadedmetadata = () => { if (!isFinite(a.duration)) return; clearTimeout(guard); guard = setTimeout(() => finish(a.duration), a.duration * 1000 + 1500); };
-    a.onended = () => finish(a.duration);
-    a.onerror = () => finish(0);
+    a.onended = () => finish(a.duration); a.onerror = () => finish(0);
     a.play().catch(() => finish(0));
   });
 }
 
-function bubble(line, label) {
-  const side = line.who === "Saathi" ? "out" : "in";
-  const d = document.createElement("div"); d.className = `vm ${side}`;
-  const bars = Array.from({ length: 30 }, (_, i) => `<span style="height:${25 + ((i * 41 + (side === "out" ? 7 : 19)) % 75)}%;animation-delay:${(i % 8) * 0.08}s"></span>`).join("");
-  d.innerHTML = `<div class="who">${label}</div><div class="vp"><button type="button" aria-label="Play again">▶</button><div class="wave">${bars}</div><span class="dur">0:00</span></div><div class="tx wait">🎧 listening…</div><div class="meta"></div>`;
-  log.appendChild(d); scroll();
-  return d;
+function bubble(who, label) {
+  const d = document.createElement("div"); d.className = `vm ${who === "Saathi" ? "out" : "in"}`;
+  const side = who === "Saathi" ? 7 : 19;
+  const bars = Array.from({ length: 30 }, (_, i) => `<span style="height:${25 + ((i * 41 + side) % 75)}%;animation-delay:${(i % 8) * 0.08}s"></span>`).join("");
+  d.innerHTML = `<div class="who">${label}</div><div class="vp"><button type="button" aria-label="Play">▶</button><div class="wave">${bars}</div><span class="dur">0:00</span></div><div class="tx wait"></div><div class="meta"></div>`;
+  log.appendChild(d); scroll(); return d;
 }
 const chip = (d, t) => { const s = document.createElement("span"); s.textContent = t; d.querySelector(".meta").appendChild(s); };
+function typingDots() { const d = document.createElement("div"); d.className = "typing"; d.innerHTML = "<i></i><i></i><i></i>"; log.appendChild(d); scroll(); return d; }
 
-async function speakLine(line, script) {
-  if (engine !== "gnani") return { browser: true };
-  const voice = $(line.who === "Saathi" ? "vS" : "vC").value;
-  return api({ action: "speak", text: line.text, voice, language: "en-IN", transcribe: true });
+function setTurnUi(enabled) {
+  const micOk = enabled && engine === "gnani" && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  $("mic").disabled = !micOk; $("typed").disabled = !enabled; $("send").disabled = !enabled;
+  if (enabled) { hint(micOk ? "Your turn: tap the mic and speak as the clinic receptionist." : "Your turn: type what the clinic says."); $("typed").focus(); }
+  else hint("");
 }
 
-async function startCall() {
-  const me = ++run;
+// ---- Saathi speaks -------------------------------------------------------------------------
+async function saathiSay(text, me, meta = {}) {
   const alive = () => me === run;
+  const d = bubble("Saathi", "Saathi · AI assistant");
+  d.querySelector(".tx").textContent = "🎧 speaking…";
+  setSpeaking("Saathi"); $("status").textContent = "Saathi speaking";
+  let data;
+  try {
+    data = engine === "gnani" ? await api({ action: "speak", text, voice: $("vS").value, language: "en-IN", transcribe: false }) : { browser: true };
+  } catch (e) {
+    if (e.status === 401) { d.remove(); return endCall(me, "Wrong password."); }
+    banner(`${e.message}. Saathi continues in your browser's voice; speech-to-text is unavailable, so type what the clinic says.`);
+    engine = "browser"; data = { browser: true };
+  }
+  if (!alive()) return;
+  d.classList.add("live");
+  let dur = 0, url = null;
+  if (data.browser) dur = await browserSpeak(text);
+  else { url = b64ToUrl(data.audio, data.mime); dur = await playUrl(url); }
+  if (!alive()) return;
+  d.classList.remove("live"); setSpeaking(null);
+  d.querySelector(".dur").textContent = mmss(dur);
+  const tx = d.querySelector(".tx"); tx.className = "tx"; tx.textContent = text;
+  if (meta.llm) chip(d, `reply ${(meta.llm / 1000).toFixed(1)} s`);
+  if (data.ms) chip(d, `TTS ${data.ms.tts} ms`); else chip(d, "browser voice");
+  d.querySelector("button").onclick = async () => {
+    stopAudio(); d.classList.add("live");
+    if (url) await playUrl(url); else await browserSpeak(text);
+    d.classList.remove("live");
+  };
+  scroll();
+}
+
+// ---- the clinic (you) speaks ----------------------------------------------------------------
+function addClinicBubble(text, audioUrl, chips) {
+  const d = bubble("Clinic", "You · clinic reception");
+  const tx = d.querySelector(".tx"); tx.className = "tx"; tx.textContent = text;
+  chips.forEach((c) => chip(d, c));
+  const btn = d.querySelector("button");
+  if (audioUrl) {
+    const a = new Audio(audioUrl);
+    a.onloadedmetadata = () => { if (isFinite(a.duration)) d.querySelector(".dur").textContent = mmss(a.duration); };
+    btn.onclick = async () => { stopAudio(); d.classList.add("live"); await playUrl(audioUrl); d.classList.remove("live"); };
+  } else { btn.disabled = true; btn.style.opacity = ".35"; d.querySelector(".wave").style.opacity = ".3"; }
+  scroll();
+}
+
+// One turn: the clinic said `text`; get Saathi's reply (model), then speak it (Gnani TTS).
+async function afterClinic(me, text) {
+  turns.push({ who: "Clinic", text });
+  await agentReply(me);
+}
+async function agentReply(me) {
+  const alive = () => me === run;
+  busy = true; setTurnUi(false); $("status").textContent = "Saathi is thinking…";
+  const dots = typingDots();
+  let r;
+  try { r = await api({ action: "agent", turns }); }
+  catch (e) {
+    dots.remove(); busy = false; if (!alive()) return;
+    if (e.status === 401) return endCall(me, "Wrong password.");
+    sys("Saathi couldn't reply: " + e.message, () => { if (alive()) agentReply(me); });
+    $("status").textContent = "Connected"; return;
+  }
+  dots.remove(); if (!alive()) return;
+  await sleep(rnd(150, 500));
+  turns.push({ who: "Saathi", text: r.say });
+  await saathiSay(r.say, me, { llm: r.ms && r.ms.llm });
+  if (!alive()) return;
+  if (r.end) return finishCall(me);
+  busy = false; $("status").textContent = "Your turn"; setTurnUi(true);
+}
+
+// ---- microphone ------------------------------------------------------------------------------
+let rec = null, stream = null, chunks = [], meter = null, recTimer = null;
+
+async function toWav16k(blob) {          // decode whatever the browser recorded, resample to 16 kHz mono WAV
+  const buf = await blob.arrayBuffer();
+  const ac = new (window.AudioContext || window.webkitAudioContext)();
+  const decoded = await ac.decodeAudioData(buf.slice(0)); ac.close();
+  const off = new OfflineAudioContext(1, Math.max(1, Math.ceil(decoded.duration * 16000)), 16000);
+  const src = off.createBufferSource(); src.buffer = decoded; src.connect(off.destination); src.start();
+  const pcm = (await off.startRendering()).getChannelData(0);
+  const out = new DataView(new ArrayBuffer(44 + pcm.length * 2));
+  const w = (o, s) => { for (let i = 0; i < s.length; i++) out.setUint8(o + i, s.charCodeAt(i)); };
+  w(0, "RIFF"); out.setUint32(4, 36 + pcm.length * 2, true); w(8, "WAVE"); w(12, "fmt ");
+  out.setUint32(16, 16, true); out.setUint16(20, 1, true); out.setUint16(22, 1, true);
+  out.setUint32(24, 16000, true); out.setUint32(28, 32000, true); out.setUint16(32, 2, true); out.setUint16(34, 16, true);
+  w(36, "data"); out.setUint32(40, pcm.length * 2, true);
+  for (let i = 0; i < pcm.length; i++) out.setInt16(44 + i * 2, Math.max(-1, Math.min(1, pcm[i])) * 0x7fff, true);
+  return { bytes: new Uint8Array(out.buffer), seconds: decoded.duration };
+}
+function bytesToB64(u8) { let s = ""; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); }
+
+async function startRec() {
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+  catch (e) { hint("Microphone blocked. Allow it in the browser, or type instead."); return; }
+  chunks = []; rec = new MediaRecorder(stream);
+  rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+  rec.onstop = onRecStop;
+  rec.start();
+  $("mic").classList.add("rec"); $("mic").innerHTML = '⏹ Tap to send <span class="lvl"><i></i></span>';
+  setSpeaking("Clinic"); $("status").textContent = "You are speaking"; hint("Recording… tap again to send (auto-stops at 25 s).");
+  const ac = new (window.AudioContext || window.webkitAudioContext)(); const an = ac.createAnalyser(); an.fftSize = 512;
+  ac.createMediaStreamSource(stream).connect(an); const data = new Uint8Array(an.fftSize);
+  meter = setInterval(() => { an.getByteTimeDomainData(data); let m = 0; for (const v of data) m = Math.max(m, Math.abs(v - 128)); const i = $("mic").querySelector(".lvl i"); if (i) i.style.width = Math.min(100, m * 1.6) + "%"; }, 80);
+  rec._ac = ac;
+  recTimer = setTimeout(stopRec, 25000);
+}
+function stopRec() {
+  clearTimeout(recTimer); clearInterval(meter);
+  if (rec && rec.state !== "inactive") rec.stop();
+}
+async function onRecStop() {
+  const me = run; const mime = rec.mimeType || "audio/webm";
+  stream.getTracks().forEach((t) => t.stop()); try { rec._ac.close(); } catch {}
+  $("mic").classList.remove("rec"); $("mic").textContent = "🎙 Tap to speak"; setSpeaking(null);
+  const blob = new Blob(chunks, { type: mime });
+  if (me !== run) return;
+  setTurnUi(false); $("status").textContent = "Transcribing…"; hint("Transcribing with Gnani STT…");
+  try {
+    const wav = await toWav16k(blob);
+    if (wav.seconds < 0.4) { hint("That was too short. Tap the mic and try again."); $("status").textContent = "Your turn"; setTurnUi(true); return; }
+    const r = await api({ action: "stt", audio: bytesToB64(wav.bytes), mime: "audio/wav", language: "en-IN" });
+    if (me !== run) return;
+    if (!r.transcript) { hint("I couldn't hear any words. Tap the mic and try again."); $("status").textContent = "Your turn"; setTurnUi(true); return; }
+    addClinicBubble(r.transcript, URL.createObjectURL(blob), [`STT ${r.ms.stt} ms`, "Gnani Prisma"]);
+    hint(""); await afterClinic(me, r.transcript);
+  } catch (e) {
+    if (me !== run) return;
+    if (e.status === 401) return endCall(me, "Wrong password.");
+    sys("Couldn't transcribe that: " + e.message + " (you can type instead)"); $("status").textContent = "Your turn"; setTurnUi(true);
+  }
+}
+$("mic").onclick = () => { if (rec && rec.state === "recording") stopRec(); else if (!$("mic").disabled) startRec(); };
+
+function sendTyped() {
+  const t = $("typed").value.trim(); if (!t || $("typed").disabled) return;
+  $("typed").value = ""; const me = run;
+  addClinicBubble(t, null, ["typed, no STT"]);
+  afterClinic(me, t);
+}
+$("send").onclick = sendTyped;
+$("typed").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); sendTyped(); } });
+
+// ---- call lifecycle --------------------------------------------------------------------------
+async function startCall() {
+  const me = ++run; const alive = () => me === run;
   $("go").textContent = "⏹ End call"; $("go").classList.add("end");
-  log.innerHTML = ""; banner(""); stopAudio(); setSpeaking(null);
+  log.innerHTML = ""; banner(""); stopAudio(); setSpeaking(null); setTurnUi(false); turns = []; busy = true;
   $("mid").classList.add("ring"); $("time").textContent = "0:00"; $("status").textContent = "Calling…";
   if (!key() && !askKey()) return endCall(me, "No password set.");
-
-  let script;
-  try { script = await api({ action: "script" }); }
+  let call;
+  try { call = await api({ action: "script" }); }
   catch (e) {
     if (e.status === 401) { try { sessionStorage.removeItem("saath_key"); } catch {} return endCall(me, "Wrong password. Tap Password to retry."); }
     if (e.status === 404) return endCall(me, "Voice tester is off: set CHAT_TEST_PASSWORD and redeploy.");
     return endCall(me, "Could not start: " + e.message);
   }
-  engine = script.gnani ? "gnani" : "browser";
-  $("engine").textContent = engine === "gnani" ? "Gnani Timbre v2.5 (TTS) + Prisma v2.5 (STT)" : "Browser voice (fallback)";
-  if (engine === "browser") banner("GNANI_API_KEY isn't set on the server, so this uses your browser's voice and there is no speech-to-text: the transcripts below are the script, not STT output. Add the key to use Gnani.");
-
-  sys(script.title);
-  const cache = [];
-  const prefetch = (i) => (cache[i] ??= i < script.lines.length ? speakLine(script.lines[i]) : null);
-  prefetch(0);                                     // synthesize the first line while the phone "rings"
-  await sleep(rnd(2400, 3800)); if (!alive()) return;
-
+  opening = call.opening;
+  engine = call.gnani ? "gnani" : "browser";
+  $("engine").textContent = engine === "gnani" ? "Gnani Timbre (TTS) + Prisma (STT)" : "Browser voice (fallback)";
+  if (engine === "browser") banner("GNANI_API_KEY isn't set on the server: Saathi speaks in your browser's voice and there is no speech-to-text, so type what the clinic says. Add the key to use Gnani.");
+  sys(call.title);
+  await sleep(rnd(2200, 3600)); if (!alive()) return;     // ringing
   $("mid").classList.remove("ring"); $("status").textContent = "Connected";
   t0 = Date.now(); clearInterval(timer);
   timer = setInterval(() => { $("time").textContent = mmss((Date.now() - t0) / 1000); }, 500);
-
-  for (let i = 0; i < script.lines.length; i++) {
-    const line = script.lines[i];
-    let data;
-    try { data = await prefetch(i); }
-    catch (e) {
-      if (e.status === 401) return endCall(me, "Wrong password.");
-      banner(`${e.message}. Continuing with browser voice (no speech-to-text) for the rest of the call.`);
-      engine = "browser"; cache[i] = null; data = { browser: true };
-    }
-    if (!alive()) return;
-    prefetch(i + 1);                               // synthesize the next line while this one plays
-
-    const label = line.who === "Saathi" ? "Saathi · AI assistant" : "Clinic reception";
-    const d = bubble(line, label);
-    setSpeaking(line.who); $("status").textContent = line.who === "Saathi" ? "Saathi speaking" : "Clinic speaking";
-    d.classList.add("live");
-
-    let dur = 0, url = null;
-    if (data.browser) { dur = await browserSpeak(line.text, line.who); }
-    else { url = b64ToUrl(data.audio, data.mime); dur = await playUrl(url); }
-    if (!alive()) return;
-    d.classList.remove("live"); setSpeaking(null);
-    d.querySelector(".dur").textContent = mmss(dur);
-
-    // reveal what speech-to-text heard
-    const tx = d.querySelector(".tx"); tx.textContent = "Transcribing…";
-    await sleep(rnd(250, 600)); if (!alive()) return;
-    tx.className = "tx";
-    if (data.browser) { tx.textContent = line.text; chip(d, "script text, no STT"); }
-    else if (data.transcript) { tx.textContent = data.transcript; chip(d, `STT ${data.ms.stt} ms`); chip(d, `TTS ${data.ms.tts} ms`); }
-    else { tx.textContent = line.text; chip(d, "STT failed: showing script"); chip(d, `TTS ${data.ms.tts} ms`); if (data.sttError) banner(data.sttError); }
-
-    const btn = d.querySelector("button");
-    btn.onclick = async () => {
-      if (!url && !data.browser) return;
-      stopAudio(); d.classList.add("live");
-      if (data.browser) await browserSpeak(line.text, line.who); else await playUrl(url);
-      d.classList.remove("live");
-    };
-    scroll();
-    await sleep(rnd(350, 1100));                   // natural gap between turns
-  }
-  clearInterval(timer);
-  $("status").textContent = "Call ended";
-  sys("Call ended · " + mmss((Date.now() - t0) / 1000));
-  finish();
+  sys("Connected. You are the clinic receptionist: answer Saathi.");
+  turns.push({ who: "Saathi", text: opening });
+  await saathiSay(opening, me);
+  if (!alive()) return;
+  busy = false; $("status").textContent = "Your turn"; setTurnUi(true);
 }
 
-function finish() { $("go").textContent = "↺ Call again"; $("go").classList.remove("end"); setSpeaking(null); }
-function endCall(me, msg) { if (me !== run) return; clearInterval(timer); $("status").textContent = "Ready"; $("mid").classList.remove("ring"); if (msg) sys(msg); finish(); }
+async function finishCall(me) {
+  clearInterval(timer); setTurnUi(false); busy = true;
+  $("status").textContent = "Call ended";
+  sys("Call ended · " + mmss((Date.now() - t0) / 1000));
+  setBtnAgain();
+  // facts-only summary of what the clinic actually said (nothing inferred)
+  try {
+    const { summary: s } = await api({ action: "summary", turns });
+    if (me !== run) return;
+    const d = document.createElement("div"); d.className = "summary" + (s.booked ? "" : " no");
+    const row = (k, v) => v ? `<div><b>${k}</b>${esc(v)}</div>` : "";
+    d.innerHTML = `<h4>${s.booked ? "✅ Appointment booked" : "⚠️ Not booked"}</h4>${row("Doctor", s.doctor)}${row("Date", s.date)}${row("Time", s.time)}${row("Fee", s.fee)}${row("Bring", s.bring)}${row("Note", s.note)}<small>Extracted from what was said on this call. Anything not stated is left out.</small>`;
+    log.appendChild(d); scroll();
+  } catch (e) { sys("Couldn't summarize the call: " + e.message); }
+}
+function setBtnAgain() { $("go").textContent = "↺ Call again"; $("go").classList.remove("end"); setSpeaking(null); }
+function endCall(me, msg) { if (me !== run) return; clearInterval(timer); $("status").textContent = "Ready"; $("mid").classList.remove("ring"); setTurnUi(false); if (msg) sys(msg); setBtnAgain(); }
 
 $("go").onclick = () => {
-  if ($("go").classList.contains("end")) { run++; stopAudio(); clearInterval(timer); $("status").textContent = "Ended"; sys("Call ended by you."); finish(); }
-  else startCall();
+  if ($("go").classList.contains("end")) {
+    run++; stopAudio(); clearInterval(timer); stopRec(); setTurnUi(false);
+    $("status").textContent = "Ended"; sys("Call ended by you."); setBtnAgain();
+  } else startCall();
 };
-$("mid").classList.remove("ring");
-sys("Press Start call to hear Saathi phone the clinic. Both sides are voiced with Gnani TTS; each line is then transcribed with Gnani STT.");
+sys("Press Start call. Saathi (an AI) phones the clinic and you answer as the receptionist: speak into the mic, Gnani transcribes you, and Saathi replies in a Gnani voice.");
 </script>
 </body>
 </html>
