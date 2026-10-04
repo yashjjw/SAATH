@@ -97,7 +97,7 @@
   .call .ln { font-size: 13px; margin: 5px 0; display: flex; gap: 6px; }
   .call .ln i { color: var(--time); font-style: normal; font-variant-numeric: tabular-nums; flex: none; }
   .call .ln .who { font-weight: 600; flex: none; }
-  .call .ln.saathi .who { color: #1fa855; } .call .ln.clinic .who { color: #027eb5; }
+  .call .ln.saath .who { color: #1fa855; } .call .ln.clinic .who { color: #027eb5; }
   .call .rec { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 8px 10px; border-radius: 22px; background: var(--shadow); }
   .call .rec button { width: 32px; height: 32px; border-radius: 50%; border: 0; background: #25d366; color: #fff; cursor: pointer; flex: none; }
   .call .wave { flex: 1; display: flex; align-items: center; gap: 2px; height: 26px; }
@@ -128,9 +128,9 @@
 <header>
   <button class="iconbtn" type="button" aria-label="Back"><svg width="24" height="24" viewBox="0 0 24 24"><path d="M12 4l1.4 1.4L7.8 11H20v2H7.8l5.6 5.6L12 20l-8-8z"/></svg></button>
   <div class="avatar">S</div>
-  <div class="who"><b>Saathi</b><small id="status">online</small></div>
+  <div class="who"><b>Saath</b><small id="status">online</small></div>
   <a class="iconbtn" href="/voice.html" title="Voice call simulation" aria-label="Voice call simulation" style="text-decoration:none;color:inherit;font-size:18px;padding:4px 8px">📞</a>
-  <button class="iconbtn" id="mode" type="button" aria-label="Switch mode" title="Switch Patient / Clinic" style="font-size:12px;font-weight:600;border:1px solid #ffffff66;border-radius:14px;padding:4px 10px">Saathi</button>
+  <button class="iconbtn" id="mode" type="button" aria-label="Switch mode" title="Switch Patient / Clinic" style="font-size:12px;font-weight:600;border:1px solid #ffffff66;border-radius:14px;padding:4px 10px">Saath</button>
   <button class="iconbtn" id="menu" type="button" aria-label="Set test password" title="Set test password"><svg width="24" height="24" viewBox="0 0 24 24"><path d="M12 7a2 2 0 100-4 2 2 0 000 4zm0 2a2 2 0 100 4 2 2 0 000-4zm0 6a2 2 0 100 4 2 2 0 000-4z"/></svg></button>
 </header>
 
@@ -166,8 +166,8 @@ const TICK2 = '<svg viewBox="0 0 16 11"><path d="M11.100.7L4.900 7.200 2.400 4.6
 let pending = null;   // { base64, mime, url }
 let busy = false;
 let lastSide = null;  // for grouping bubbles + tails
-let mode = "saathi";  // "saathi" (scripted demo) | "patient" | "clinic"
-let demo = null;      // saathi mode: server-returned script state, resent each turn
+let mode = "saath";  // "saath" (scripted demo) | "patient" | "clinic"
+let demo = null;      // saath mode: server-returned script state, resent each turn
 let history = [];     // clinic mode only: [{role, text}], kept in the browser, resent each turn
 
 const key = () => sessionStorage.getItem("saath_key") || "";
@@ -177,7 +177,7 @@ function askKey() {
   return key();
 }
 const hhmm = () => new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).replace(" AM", " am").replace(" PM", " pm");
-let lastTime = null;   // saathi mode: the conversation clock, so unscripted bubbles never show the real time
+let lastTime = null;   // saath mode: the conversation clock, so unscripted bubbles never show the real time
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const esc = (s) => s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
 // WhatsApp-style *bold* and _italic_
@@ -196,7 +196,7 @@ function bubble(side, t, imgUrl, time, extra) {
   if (t) { const b = document.createElement("div"); b.className = "body"; b.innerHTML = fmt(t); d.appendChild(b); }
   const m = document.createElement("div"); m.className = "meta";
   if (time) lastTime = time;
-  m.innerHTML = `<span>${time || (mode === "saathi" && lastTime) || hhmm()}</span>` + (side === "out" ? `<span class="tk">${TICK1}</span>` : "");
+  m.innerHTML = `<span>${time || (mode === "saath" && lastTime) || hhmm()}</span>` + (side === "out" ? `<span class="tk">${TICK1}</span>` : "");
   d.appendChild(m);
   log.appendChild(d); lastSide = side; scroll();
   return d;
@@ -244,17 +244,17 @@ $("clip").onclick = () => pick(false);
 $("cam").onclick = () => pick(true);
 $("emoji").onclick = () => text.focus();
 $("menu").onclick = askKey;
-const MODES = ["saathi", "patient", "clinic"];
-const LABEL = { saathi: "Saathi", patient: "Patient", clinic: "Clinic" };
-const NAME = { saathi: "Saathi", patient: "SAATH", clinic: "SAATH Clinic" };
-const INITIAL = { saathi: "S", patient: "S", clinic: "C" };
+const MODES = ["saath", "patient", "clinic"];
+const LABEL = { saath: "Saath", patient: "Patient", clinic: "Clinic" };
+const NAME = { saath: "Saath", patient: "SAATH", clinic: "SAATH Clinic" };
+const INITIAL = { saath: "S", patient: "S", clinic: "C" };
 function initThread() {
   log.innerHTML = ""; lastSide = null; history = []; demo = null; lastTime = null;
   document.body.classList.toggle("clinic", mode === "clinic");
   $("mode").textContent = LABEL[mode];
   document.querySelector(".who b").textContent = NAME[mode];
   document.querySelector(".avatar").textContent = INITIAL[mode];
-  const dayText = mode === "saathi" ? "Sunday, 4 Oct" : new Date().toLocaleDateString([], { weekday: "long", day: "numeric", month: "short" });
+  const dayText = mode === "saath" ? "Sunday, 4 Oct" : new Date().toLocaleDateString([], { weekday: "long", day: "numeric", month: "short" });
   const d = document.createElement("div"); d.className = "day"; d.textContent = dayText; log.appendChild(d);
 }
 $("mode").onclick = () => {
@@ -331,7 +331,7 @@ async function renderCall(m) {
     await sleep(rnd(1100, 2600) + (l.t - prev) * 20);  // pauses vary; longer gaps in the call get a longer pause
     prev = l.t; sub.textContent = "Connected · " + mmss(l.t);
     const row = document.createElement("div"); row.className = "ln " + l.who.toLowerCase();
-    const who = l.who === "Saathi" ? "Saathi (AI)" : "Clinic";
+    const who = l.who === "Saath" ? "Saath (AI)" : "Clinic";
     row.innerHTML = `<i>${mmss(l.t)}</i><span><span class="who">${who}:</span> ${esc(l.text)}</span>`;
     box.appendChild(row); scroll();
   }
@@ -353,7 +353,7 @@ async function renderCall(m) {
       if (!playing || i >= m.lines.length) return stop();
       const u = new SpeechSynthesisUtterance(m.lines[i].text);
       if (v) u.voice = v;
-      u.pitch = m.lines[i].who === "Saathi" ? 1.15 : 0.8; u.rate = 1.02;
+      u.pitch = m.lines[i].who === "Saath" ? 1.15 : 0.8; u.rate = 1.02;
       u.onend = () => next(i + 1); u.onerror = stop;
       speechSynthesis.speak(u);
     })(0);
@@ -385,7 +385,7 @@ async function send(t, img, id) {
   if (!key() && !askKey()) return;
   busy = true;
   clearChips();
-  const scripted = mode === "saathi" && !img;
+  const scripted = mode === "saath" && !img;
   const silent = id === "skip";   // demo control: jump ahead without a user bubble
   const mine = silent ? null : bubble("out", t, img && img.url);
   if (mine) { await sleep(250); setTicks(mine, 2); }

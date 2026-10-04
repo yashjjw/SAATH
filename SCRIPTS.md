@@ -8,48 +8,48 @@ Local URLs (run `npm run dev:local`, password in `.env.local`, default `local`):
 
 | Screen | URL |
 | --- | --- |
-| Saathi chat (WhatsApp-style) | http://localhost:3000/ |
+| Saath chat (WhatsApp-style) | http://localhost:3000/ |
 | Voice call with Gnani | http://localhost:3000/voice.html |
 
-The header button on the chat cycles **Saathi → Patient → Clinic**. The 📞 button opens the voice call.
+The header button on the chat cycles **Saath → Patient → Clinic**. The 📞 button opens the voice call.
 
 ---
 
 ## 1. Voice call (Gnani TTS + STT)
 
-You play the **clinic receptionist**. Saathi's lines are spoken by Gnani TTS; yours are recorded and transcribed by Gnani STT. Saathi's next line plays after each of yours, whatever STT heard.
+You play the **clinic receptionist**. Saath's lines are spoken by Gnani TTS; yours are recorded and transcribed by Gnani STT. Saath's next line plays after each of yours, whatever STT heard.
 
-**How to run it:** open `/voice.html`, press **Start call**, wait for Saathi to finish, tap the mic, read your line, tap again to send. Repeat for each of your four lines. Typing a reply also works if the microphone is blocked.
+**How to run it:** open `/voice.html`, press **Start call**, wait for Saath to finish, tap the mic, read your line, tap again to send. Repeat for each of your four lines. Typing a reply also works if the microphone is blocked.
 
 | # | Who | Line |
 | --- | --- | --- |
-| 1 | Saathi | Hello, this is Saathi, an AI assistant. I'm calling on behalf of Mr. Ramesh Sharma. Could I book an appointment with Dr. Kulkarni? He has visited your clinic before. |
+| 1 | Saath | Hello, this is Saath, an AI assistant. I'm calling on behalf of Mr. Ramesh Sharma. Could I book an appointment with Dr. Kulkarni? He has visited your clinic before. |
 | 2 | **You** | **Yes, which day would you like?** |
-| 3 | Saathi | The earliest morning slot you have. |
+| 3 | Saath | The earliest morning slot you have. |
 | 4 | **You** | **Tomorrow at 11:30 am is free.** |
-| 5 | Saathi | That works. 6 October, 11:30 am, under the name Ramesh Sharma. What are the fees, and should he bring any reports? |
+| 5 | Saath | That works. 6 October, 11:30 am, under the name Ramesh Sharma. What are the fees, and should he bring any reports? |
 | 6 | **You** | **The fee is 800 rupees. Please bring his old reports.** |
-| 7 | Saathi | Thank you. I'll send him the confirmation. |
+| 7 | Saath | Thank you. I'll send him the confirmation. |
 | 8 | **You** | **Okay, thank you.** |
 
 After your last line the call ends and an "Appointment confirmed" card appears: Dr. Meera Kulkarni, 6 Oct, 11:30 am, ₹800, bring old reports. That card is fixed, not extracted from speech.
 
 **Notes**
-- Speak naturally; the demo does not check your words. Gnani writes what it hears, so expect quirks (it writes "Saathi" as "sahathi", and drops punctuation).
+- Speak naturally; the demo does not check your words. Gnani writes what it hears, so expect small quirks on names and no punctuation.
 - Each call is 4 TTS and 4 STT requests. Gnani rate-limits bursts; the server retries 429s.
-- Voice dropdown on the page changes Saathi's voice. The script lives in `lib/callscript.ts`.
+- Voice dropdown on the page changes Saath's voice. The script lives in `lib/callscript.ts`.
 
 ---
 
-## 2. Saathi chat: book an appointment (Ramesh Sharma, Indore)
+## 2. Saath chat: book an appointment (Ramesh Sharma, Indore)
 
-Saathi mode, start of a fresh thread. The day divider reads **Sunday, 4 Oct**. Timestamps on bubbles are fixed to the times below.
+Saath mode, start of a fresh thread. The day divider reads **Sunday, 4 Oct**. Timestamps on bubbles are fixed to the times below.
 
 ### Main path
 
-| Step | Ramesh (you) | Saathi |
+| Step | Ramesh (you) | Saath |
 | --- | --- | --- |
-| 1 | `Hi` (7:42 pm) | Hello Ramesh 🙏 I'm Saathi, your health assistant. Here is what I can help you with. Please choose one 👇 · **[📋 View menu]** |
+| 1 | `Hi` (7:42 pm) | Hello Ramesh 🙏 I'm Saath, your health assistant. Here is what I can help you with. Please choose one 👇 · **[📋 View menu]** |
 | 2 | Tap **View menu**, pick **📅 Book an appointment** (7:43 pm) | Of course 👍 What is the appointment for? You can type or send a voice note 🎤 |
 | 3 | `I need to see a heart doctor. Please book a cardiologist appointment` (7:44 pm) | Got it ✅ A **cardiologist** appointment. One moment, I'm checking your old prescriptions 🔍 |
 | | | I found these cardiologists in your old prescriptions. Which one would you like to see? |
@@ -67,24 +67,24 @@ Saathi mode, start of a fresh thread. The day divider reads **Sunday, 4 Oct**. T
 
    | Time | Who | Line |
    | --- | --- | --- |
-   | 0:04 | Saathi (AI) | Hello, this is Saathi, an AI assistant. I'm calling on behalf of Mr. Ramesh Sharma. Could I book an appointment with Dr. Kulkarni? He has visited your clinic before. |
+   | 0:04 | Saath (AI) | Hello, this is Saath, an AI assistant. I'm calling on behalf of Mr. Ramesh Sharma. Could I book an appointment with Dr. Kulkarni? He has visited your clinic before. |
    | 0:14 | Clinic | Yes, which day would you like? |
-   | 0:19 | Saathi (AI) | The earliest morning slot you have. |
+   | 0:19 | Saath (AI) | The earliest morning slot you have. |
    | 0:27 | Clinic | Tomorrow at 11:30 am is free. |
-   | 0:36 | Saathi (AI) | That works. 6 October, 11:30 am, under the name Ramesh Sharma. What are the fees, and should he bring any reports? |
+   | 0:36 | Saath (AI) | That works. 6 October, 11:30 am, under the name Ramesh Sharma. What are the fees, and should he bring any reports? |
    | 0:52 | Clinic | The fee is 800 rupees. Please bring his old reports. |
-   | 1:06 | Saathi (AI) | Thank you. I'll send him the confirmation. |
+   | 1:06 | Saath (AI) | Thank you. I'll send him the confirmation. |
    | 1:15 | Clinic | Okay, thank you. |
 
 3. The card shows **Call ended · 1:24** and a recording player (the ▶ button reads the transcript aloud with the browser's built-in voice).
-4. Saathi then sends:
+4. Saath then sends:
    - Ramesh, your appointment is confirmed ✅
    - Card: **Appointment confirmed** · Dr. Meera Kulkarni, Cardiologist · Tuesday, 6 Oct · 11:30 am · Heartcare Clinic, Vijay Nagar · Fees ₹800 (payable at the clinic) · Please bring: old reports and your medicine list
    - What else can I do for you? 🔔 Remind you tomorrow at 9:30 am? 👨 Let Karan know? · **[Do both] [Just remind me] [No thanks]**
 
 ### After the confirmation
 
-| Ramesh | Saathi |
+| Ramesh | Saath |
 | --- | --- |
 | Tap **Do both** (10:15 am) | Done ✅ 🔔 I'll remind you tomorrow at 9:30 am and send the route to the clinic. 👨 I've messaged Karan: "Papa has an appointment with Dr. Kulkarni tomorrow at 11:30 am." |
 | Tap **Just remind me** | Done ✅ 🔔 I'll remind you tomorrow at 9:30 am and send the route to the clinic. |
@@ -95,7 +95,7 @@ Saathi mode, start of a fresh thread. The day divider reads **Sunday, 4 Oct**. T
 
 At step 5 tap **Another date** (7:47 pm):
 
-| Ramesh | Saathi |
+| Ramesh | Saath |
 | --- | --- |
 | Tap **Another date** | Sure. Which day would you like? You can type something like "next Wednesday" or "15 October". |
 | `Next Friday` (7:48 pm) | **Friday, 9 Oct.** Morning or evening? · **[Morning] [Evening] [Either]** |
@@ -107,7 +107,7 @@ This branch ends there. (Dates are matched on the words "fri" or "9"; anything e
 
 At step 3's doctor buttons tap **Someone else** (7:46 pm):
 
-| Ramesh | Saathi |
+| Ramesh | Saath |
 | --- | --- |
 | Tap **Someone else** | Okay. Please tell me the doctor's name, or the area where you'd like to be seen. |
 | `A good heart specialist near Vijay Nagar` (7:47 pm) | I've looked. I found these 3 options: |
@@ -118,7 +118,7 @@ At step 3's doctor buttons tap **Someone else** (7:46 pm):
 
 ### Other replies
 
-| You do | Saathi says |
+| You do | Saath says |
 | --- | --- |
 | Pick **2. Dr. Joshi** | I can't book with Dr. Joshi right now. Would you like to see Dr. Kulkarni instead? |
 | Menu options 2, 4, 5 or 6 | I can't help with that just yet. Right now I can book appointments for you 📅 (+ menu) |
@@ -134,7 +134,7 @@ At step 3's doctor buttons tap **Someone else** (7:46 pm):
 Header button: **Patient**. Use a **made-up** prescription photo only.
 
 1. Tap 📎 (or 📷), pick the photo, add an optional caption, send.
-2. Saathi replies with the medicines it could read. Anything unreadable is marked ⚠️ and explained; nothing is guessed.
+2. Saath replies with the medicines it could read. Anything unreadable is marked ⚠️ and explained; nothing is guessed.
 3. Plain text goes to the model (Gemini by default); it gives no clinical advice.
 
 Needs `GEMINI_API_KEY` in `.env.local`.
@@ -169,6 +169,6 @@ Clinician-mode replies come from the model, so wording varies between runs. Pack
 | --- | --- |
 | Voice call script | `lib/callscript.ts` |
 | Voice call page / Gnani proxy | `public/voice.html`, `api/voice.ts` |
-| Saathi chat flow (all replies above) | `lib/saathi.ts` |
+| Saath chat flow (all replies above) | `lib/saath.ts` |
 | Chat UI (call card, buttons, list) | `public/index.html` |
 | Clinician prompt and record | `prompts/clinic.md`, `lib/fixtures/clinic.ts` |

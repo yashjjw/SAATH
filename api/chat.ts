@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { passwordOk } from "../lib/auth.js";
 import { chatReply, extractPrescription, formatExtraction } from "../lib/agent.js";
 import { clinicReply } from "../lib/clinic.js";
-import { saathiReply, type DemoState } from "../lib/saathi.js";
+import { saathReply, type DemoState } from "../lib/saath.js";
 import type { ChatTurn } from "../lib/model.js";
 
 // Test-only twin of api/whatsapp.ts: same agent functions, no Twilio. Disabled unless
@@ -19,7 +19,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { text = "", image, mode = "patient", history = [], state = null, id } = (req.body ?? {}) as {
     text?: string;
     image?: { base64: string; mime: string };
-    mode?: "saathi" | "patient" | "clinic";
+    mode?: "saath" | "patient" | "clinic";
     history?: ChatTurn[];
     state?: DemoState | null;
     id?: string;
@@ -28,7 +28,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     // Scripted demo: deterministic, no model call. A photo falls through to the real reader below.
-    if (mode === "saathi" && !image) return res.json(saathiReply(state, { id, text: caption }));
+    if (mode === "saath" && !image) return res.json(saathReply(state, { id, text: caption }));
 
     if (mode === "clinic") {
       if (image) return res.json({ replies: ["Clinic mode is text only for now. Switch to Patient mode to read a prescription photo."] });

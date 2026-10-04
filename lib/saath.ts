@@ -1,4 +1,4 @@
-// Scripted "Book an appointment" demo for Saathi (Ramesh Sharma, Indore). Fully deterministic:
+// Scripted "Book an appointment" demo for Saath (Ramesh Sharma, Indore). Fully deterministic:
 // no model call, no real booking, no real phone call. Every name, clinic, fee and time is
 // fictional mock data from the Feature 1 design doc. Channel-neutral: the web chat renders the
 // buttons/list/cards; a plain-text channel would degrade them to numbered options.
@@ -14,7 +14,7 @@ export type Msg =
   | { kind: "card"; text: string; time?: string }
   | { kind: "system"; text: string }
   | { kind: "day"; text: string }
-  | { kind: "call"; clinic: string; lines: { who: "Saathi" | "Clinic"; t: number; text: string }[]; duration: string; time?: string }
+  | { kind: "call"; clinic: string; lines: { who: "Saath" | "Clinic"; t: number; text: string }[]; duration: string; time?: string }
   | { kind: "buttons"; options: Opt[] }
   | { kind: "list"; button: string; title: string; items: { id: string; title: string; desc: string }[] };
 
@@ -66,14 +66,14 @@ const DOCTOR_CARD: Msg = {
 };
 
 // Timestamps (seconds into the call) drive the live timer and the transcript's [m:ss] labels.
-const CALL_LINES: { who: "Saathi" | "Clinic"; t: number; text: string }[] = [
-  { who: "Saathi", t: 4, text: "Hello, this is Saathi, an AI assistant. I'm calling on behalf of Mr. Ramesh Sharma. Could I book an appointment with Dr. Kulkarni? He has visited your clinic before." },
+const CALL_LINES: { who: "Saath" | "Clinic"; t: number; text: string }[] = [
+  { who: "Saath", t: 4, text: "Hello, this is Saath, an AI assistant. I'm calling on behalf of Mr. Ramesh Sharma. Could I book an appointment with Dr. Kulkarni? He has visited your clinic before." },
   { who: "Clinic", t: 14, text: "Yes, which day would you like?" },
-  { who: "Saathi", t: 19, text: "The earliest morning slot you have." },
+  { who: "Saath", t: 19, text: "The earliest morning slot you have." },
   { who: "Clinic", t: 27, text: "Tomorrow at 11:30 am is free." },
-  { who: "Saathi", t: 36, text: "That works. 6 October, 11:30 am, under the name Ramesh Sharma. What are the fees, and should he bring any reports?" },
+  { who: "Saath", t: 36, text: "That works. 6 October, 11:30 am, under the name Ramesh Sharma. What are the fees, and should he bring any reports?" },
   { who: "Clinic", t: 52, text: "The fee is 800 rupees. Please bring his old reports." },
-  { who: "Saathi", t: 66, text: "Thank you. I'll send him the confirmation." },
+  { who: "Saath", t: 66, text: "Thank you. I'll send him the confirmation." },
   { who: "Clinic", t: 75, text: "Okay, thank you." },
 ];
 
@@ -84,7 +84,7 @@ function greet(): DemoResult {
   return {
     state: { step: "menu" },
     userTime: "7:42 pm",
-    messages: [t("Hello Ramesh 🙏 I'm Saathi, your health assistant.\nHere is what I can help you with. Please choose one 👇", "7:42 pm"), MENU],
+    messages: [t("Hello Ramesh 🙏 I'm Saath, your health assistant.\nHere is what I can help you with. Please choose one 👇", "7:42 pm"), MENU],
   };
 }
 
@@ -125,7 +125,7 @@ function bookingFlow(): Msg[] {
   ];
 }
 
-export function saathiReply(state: DemoState | null | undefined, input: DemoInput): DemoResult {
+export function saathReply(state: DemoState | null | undefined, input: DemoInput): DemoResult {
   const text = (input.text ?? "").trim();
   if (input.id === "restart" || GREETING.test(text) || !state) return greet();
 

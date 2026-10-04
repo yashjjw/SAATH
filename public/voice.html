@@ -30,9 +30,9 @@
   .parties { display: flex; align-items: center; justify-content: space-around; gap: 6px; }
   .p { text-align: center; flex: 1; min-width: 0; }
   .p .av { width: 56px; height: 56px; border-radius: 50%; margin: 0 auto 6px; display: grid; place-items: center; font-size: 24px; font-weight: 600; position: relative; color: #fff; }
-  .p.saathi .av { background: #25d366; } .p.clinic .av { background: #3b82c4; }
+  .p.saath .av { background: #25d366; } .p.clinic .av { background: #3b82c4; }
   .p.speaking .av::after { content: ""; position: absolute; inset: -6px; border-radius: 50%; border: 2px solid currentColor; animation: pulse 1.1s ease-out infinite; }
-  .p.saathi.speaking { color: #25d366; } .p.clinic.speaking { color: #7cc0ff; }
+  .p.saath.speaking { color: #25d366; } .p.clinic.speaking { color: #7cc0ff; }
   @keyframes pulse { 0% { transform: scale(.9); opacity: .9; } 100% { transform: scale(1.25); opacity: 0; } }
   .p b { display: block; font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .p small { opacity: .7; font-size: 11.5px; }
@@ -95,18 +95,18 @@
 <header>
   <div class="top">
     <a href="/">← Chat</a>
-    <div class="title">Saathi · calling Heartcare Clinic</div>
+    <div class="title">Saath · calling Heartcare Clinic</div>
     <button id="pw" type="button">Password</button>
   </div>
   <div class="parties">
-    <div class="p saathi" id="pS"><div class="av">S</div><b>Saathi</b><small>AI assistant</small></div>
+    <div class="p saath" id="pS"><div class="av">S</div><b>Saath</b><small>AI assistant</small></div>
     <div class="mid" id="mid"><div class="time" id="time">0:00</div><div id="status">Ready</div></div>
     <div class="p clinic" id="pC"><div class="av">🏥</div><b>Heartcare Clinic</b><small>Reception</small></div>
   </div>
 </header>
 <div class="banner" id="banner"></div>
 <div class="opts"><div class="sel">
-  <label>Saathi's voice <select id="vS"></select></label>
+  <label>Saath's voice <select id="vS"></select></label>
   <span id="engine"></span>
 </div></div>
 <div id="log" aria-live="polite"></div>
@@ -163,12 +163,12 @@ const hint = (t) => { $("hint").textContent = t || ""; };
 
 // ---- call state ----------------------------------------------------------------------------
 let run = 0;             // bumped to cancel the call
-let engine = "gnani";    // "gnani" | "browser" (fallback: browser voice for Saathi, typed input only)
-let lines = [], idx = 0, cache = {};   // the script, the current position, prefetched Saathi audio
+let engine = "gnani";    // "gnani" | "browser" (fallback: browser voice for Saath, typed input only)
+let lines = [], idx = 0, cache = {};   // the script, the current position, prefetched Saath audio
 let audioEl = null, timer = null, t0 = 0;
 
 function setSpeaking(who) {
-  $("pS").classList.toggle("speaking", who === "Saathi");
+  $("pS").classList.toggle("speaking", who === "Saath");
   $("pC").classList.toggle("speaking", who === "Clinic");
 }
 function stopAudio() { try { audioEl && audioEl.pause(); } catch {} audioEl = null; try { speechSynthesis.cancel(); } catch {} }
@@ -203,8 +203,8 @@ function playUrl(url) {
 }
 
 function bubble(who, label) {
-  const d = document.createElement("div"); d.className = `vm ${who === "Saathi" ? "out" : "in"}`;
-  const side = who === "Saathi" ? 7 : 19;
+  const d = document.createElement("div"); d.className = `vm ${who === "Saath" ? "out" : "in"}`;
+  const side = who === "Saath" ? 7 : 19;
   const bars = Array.from({ length: 30 }, (_, i) => `<span style="height:${25 + ((i * 41 + side) % 75)}%;animation-delay:${(i % 8) * 0.08}s"></span>`).join("");
   d.innerHTML = `<div class="who">${label}</div><div class="vp"><button type="button" aria-label="Play">▶</button><div class="wave">${bars}</div><span class="dur">0:00</span></div><div class="tx wait"></div><div class="meta"></div>`;
   log.appendChild(d); scroll(); return d;
@@ -219,18 +219,18 @@ function setTurnUi(enabled) {
   else hint("");
 }
 
-// ---- Saathi speaks -------------------------------------------------------------------------
-async function saathiSay(text, me, meta = {}, pre = null) {
+// ---- Saath speaks -------------------------------------------------------------------------
+async function saathSay(text, me, meta = {}, pre = null) {
   const alive = () => me === run;
-  const d = bubble("Saathi", "Saathi · AI assistant");
+  const d = bubble("Saath", "Saath · AI assistant");
   d.querySelector(".tx").textContent = "🎧 speaking…";
-  setSpeaking("Saathi"); $("status").textContent = "Saathi speaking";
+  setSpeaking("Saath"); $("status").textContent = "Saath speaking";
   let data;
   try {
     data = engine === "gnani" ? await (pre || api({ action: "speak", text, voice: $("vS").value, language: "en-IN", transcribe: false })) : { browser: true };
   } catch (e) {
     if (e.status === 401) { d.remove(); return endCall(me, "Wrong password."); }
-    banner(`${e.message}. Saathi continues in your browser's voice; speech-to-text is unavailable, so type what the clinic says.`);
+    banner(`${e.message}. Saath continues in your browser's voice; speech-to-text is unavailable, so type what the clinic says.`);
     engine = "browser"; data = { browser: true };
   }
   if (!alive()) return;
@@ -267,11 +267,11 @@ function addClinicBubble(text, audioUrl, chips) {
 }
 
 // ---- scripted flow ----------------------------------------------------------------------------
-function prefetch(i) {                       // synthesize a Saathi line ahead of time so it plays without a gap
-  if (engine !== "gnani" || !lines[i] || lines[i].who !== "Saathi") return null;
+function prefetch(i) {                       // synthesize a Saath line ahead of time so it plays without a gap
+  if (engine !== "gnani" || !lines[i] || lines[i].who !== "Saath") return null;
   return (cache[i] ??= api({ action: "speak", text: lines[i].text, voice: $("vS").value, language: "en-IN", transcribe: false }));
 }
-// Plays Saathi's lines until it is the clinic's (your) turn, or the script is over.
+// Plays Saath's lines until it is the clinic's (your) turn, or the script is over.
 async function advance(me) {
   const alive = () => me === run;
   while (alive() && idx < lines.length) {
@@ -280,10 +280,10 @@ async function advance(me) {
       prefetch(idx + 1);
       $("status").textContent = "Listening"; setTurnUi(true); return;
     }
-    await sleep(rnd(350, 1100)); if (!alive()) return;       // a natural beat before Saathi speaks
+    await sleep(rnd(350, 1100)); if (!alive()) return;       // a natural beat before Saath speaks
     const pre = prefetch(idx); if (pre) pre.catch(() => {});
     idx++;
-    await saathiSay(line.text, me, {}, pre); if (!alive()) return;
+    await saathSay(line.text, me, {}, pre); if (!alive()) return;
   }
   if (alive()) finishCall(me);
 }
@@ -382,9 +382,9 @@ async function startCall() {
   lines = call.lines;
   engine = call.gnani ? "gnani" : "browser";
   $("engine").textContent = engine === "gnani" ? "Gnani Timbre (TTS) + Prisma (STT)" : "Browser voice (fallback)";
-  if (engine === "browser") banner("GNANI_API_KEY isn't set on the server: Saathi speaks in your browser's voice and there is no speech-to-text, so type your replies. Add the key to use Gnani.");
+  if (engine === "browser") banner("GNANI_API_KEY isn't set on the server: Saath speaks in your browser's voice and there is no speech-to-text, so type your replies. Add the key to use Gnani.");
   sys(call.title);
-  prefetch(0);                                            // synthesize Saathi's opening while the phone "rings"
+  prefetch(0);                                            // synthesize Saath's opening while the phone "rings"
   await sleep(rnd(2200, 3600)); if (!alive()) return;     // ringing
   $("mid").classList.remove("ring"); $("status").textContent = "Connected";
   t0 = Date.now(); clearInterval(timer);
